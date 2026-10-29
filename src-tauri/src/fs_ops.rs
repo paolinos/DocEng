@@ -1,5 +1,6 @@
 use crate::error::{AppError, AppResult};
 use crate::path_policy::PathPolicy;
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use serde::Serialize;
 use std::ffi::OsStr;
 use std::fs::{self, File, OpenOptions};
@@ -9,7 +10,11 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::State;
 
 const MAX_TEXT_FILE_BYTES: u64 = 10 * 1024 * 1024;
+const MAX_IMAGE_FILE_BYTES: u64 = 20 * 1024 * 1024;
 const BINARY_SAMPLE_BYTES: usize = 8 * 1024;
+
+const PNG_MAGIC: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+const JPEG_MAGIC: [u8; 3] = [0xFF, 0xD8, 0xFF];
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -57,6 +62,16 @@ impl PathInfo {
 pub struct TextFileInfo {
     pub path: String,
     pub content: String,
+    pub size: u64,
+    pub modified_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageFileInfo {
+    pub path: String,
+    pub mime_type: String,
+    pub data_url: String,
     pub size: u64,
     pub modified_ms: Option<u64>,
 }
@@ -197,6 +212,12 @@ pub fn read_text_file(path: String, policy: State<'_, PathPolicy>) -> AppResult<
 }
 
 #[tauri::command]
+pub fn read_image_file(path: String, policy: State<'_, PathPolicy>) -> AppResult<ImageFileInfo> {
+    let canonical = policy.allow(Path::new(&path))?;
+    read_image_file_impl(&canonical)
+}
+
+#[tauri::command]
 pub fn write_text_file(
     path: String,
     content: String,
@@ -316,6 +337,100 @@ fn read_text_file_impl(path: &Path) -> AppResult<TextFileInfo> {
     Ok(TextFileInfo {
         path: path.to_string_lossy().into_owned(),
         content,
+        size: metadata.len(),
+        modified_ms: modified_ms(&metadata),
+    })
+}
+
+fn image_mime_for_extension(extension: &str) -> Option<&'static str> {
+    match extension {
+        "png" => Some("image/png"),
+        "jpg" | "jpeg" => Some("image/jpeg"),
+        "webp" => Some("image/webp"),
+        _ => None,
+    }
+}
+
+fn image_magic_matches(extension: &str, bytes: &[u8]) -> bool {
+    match extension {
+        "png" => bytes.starts_with(&PNG_MAGIC),
+        "jpg" | "jpeg" => bytes.starts_with(&JPEG_MAGIC),
+        "webp" => {
+            bytes.len() >= 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WEBP"
+        }
+        _ => false,
+    }
+}
+
+fn read_image_file_impl(path: &Path) -> AppResult<ImageFileInfo> {
+    let metadata = fs::metadata(path).map_err(|error| AppError::io(path, error))?;
+
+    if !metadata.is_file() {
+        return Err(
+            AppError::new("not_a_file", "Path is not a regular file.")
+                .with_path(path.display().to_string()),
+        );
+    }
+
+    if metadata.len() > MAX_IMAGE_FILE_BYTES {
+        return Err(AppError::new(
+            "image_too_large",
+            format!(
+                "Image is {} bytes; the preview limit is {} bytes.",
+                metadata.len(),
+                MAX_IMAGE_FILE_BYTES
+            ),
+        )
+        .with_path(path.display().to_string()));
+    }
+
+    let extension = path
+        .extension()
+        .and_then(OsStr::to_str)
+        .unwrap_or_default()
+        .to_lowercase();
+
+    let mime_type = image_mime_for_extension(&extension).ok_or_else(|| {
+        AppError::new(
+            "unsupported_image",
+            "Only PNG, JPEG, and WebP images are supported.",
+        )
+        .with_path(path.display().to_string())
+    })?;
+
+    let mut file = File::open(path).map_err(|error| AppError::io(path, error))?;
+    // Read one byte past the limit so a file that grew after the metadata check
+    // is still rejected without loading unbounded data into memory.
+    let mut bytes = Vec::with_capacity(metadata.len() as usize + 1);
+    let mut limited = Read::take(&mut file, MAX_IMAGE_FILE_BYTES + 1);
+    limited
+        .read_to_end(&mut bytes)
+        .map_err(|error| AppError::io(path, error))?;
+
+    if bytes.len() as u64 > MAX_IMAGE_FILE_BYTES {
+        return Err(AppError::new(
+            "image_too_large",
+            format!(
+                "Image exceeds the {} byte preview limit.",
+                MAX_IMAGE_FILE_BYTES
+            ),
+        )
+        .with_path(path.display().to_string()));
+    }
+
+    if !image_magic_matches(&extension, &bytes) {
+        return Err(
+            AppError::new("invalid_image", "Image data does not match its file type.")
+                .with_path(path.display().to_string()),
+        );
+    }
+
+    let data_url = format!("data:{mime_type};base64,{}", BASE64.encode(&bytes));
+
+    Ok(ImageFileInfo {
+        path: path.to_string_lossy().into_owned(),
+        mime_type: mime_type.to_string(),
+        data_url,
         size: metadata.len(),
         modified_ms: modified_ms(&metadata),
     })
@@ -512,6 +627,110 @@ mod tests {
 
         let error = read_text_file_impl(&file).expect_err("binary file must be rejected");
         assert_eq!(error.code, "binary_file");
+    }
+
+    fn png_fixture() -> Vec<u8> {
+        vec![
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48,
+            0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00,
+            0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41, 0x54, 0x78,
+            0x9C, 0x63, 0x00, 0x01, 0x00, 0x00, 0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00,
+            0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+        ]
+    }
+
+    fn jpeg_fixture() -> Vec<u8> {
+        vec![
+            0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01,
+        ]
+    }
+
+    fn webp_fixture() -> Vec<u8> {
+        let mut bytes = b"RIFF\x24\x00\x00\x00WEBPVP8 ".to_vec();
+        bytes.extend_from_slice(&[0_u8; 16]);
+        bytes
+    }
+
+    #[test]
+    fn reads_supported_image_formats() {
+        let dir = tempdir().expect("temp dir");
+        let cases = [
+            ("pixel.png", png_fixture(), "image/png"),
+            ("photo.jpg", jpeg_fixture(), "image/jpeg"),
+            ("photo.jpeg", jpeg_fixture(), "image/jpeg"),
+            ("shot.webp", webp_fixture(), "image/webp"),
+        ];
+
+        for (name, bytes, mime) in cases {
+            let file = dir.path().join(name);
+            fs::write(&file, &bytes).expect("write fixture");
+
+            let info = read_image_file_impl(&file).expect("read image");
+            assert_eq!(info.mime_type, mime);
+            assert_eq!(info.size, bytes.len() as u64);
+            assert!(info.data_url.starts_with(&format!("data:{mime};base64,")));
+
+            let payload = info
+                .data_url
+                .strip_prefix(&format!("data:{mime};base64,"))
+                .expect("data url prefix");
+            assert_eq!(BASE64.decode(payload).expect("decode"), bytes);
+        }
+    }
+
+    #[test]
+    fn rejects_unsupported_image_extensions() {
+        let dir = tempdir().expect("temp dir");
+        let file = dir.path().join("animation.gif");
+        fs::write(&file, png_fixture()).expect("write fixture");
+
+        let error = read_image_file_impl(&file).expect_err("gif must be rejected");
+        assert_eq!(error.code, "unsupported_image");
+    }
+
+    #[test]
+    fn rejects_images_with_mismatched_magic_bytes() {
+        let dir = tempdir().expect("temp dir");
+        let file = dir.path().join("fake.png");
+        fs::write(&file, jpeg_fixture()).expect("write fixture");
+
+        let error = read_image_file_impl(&file).expect_err("mismatched magic must be rejected");
+        assert_eq!(error.code, "invalid_image");
+    }
+
+    #[test]
+    fn rejects_oversized_images() {
+        let dir = tempdir().expect("temp dir");
+        let file = dir.path().join("huge.png");
+        let handle = File::create(&file).expect("create fixture");
+        handle
+            .set_len(MAX_IMAGE_FILE_BYTES + 1)
+            .expect("size fixture");
+
+        let error = read_image_file_impl(&file).expect_err("oversize image must be rejected");
+        assert_eq!(error.code, "image_too_large");
+    }
+
+    #[test]
+    fn image_reads_require_authorization() {
+        let dir = tempdir().expect("temp dir");
+        let other = tempdir().expect("other dir");
+        let file = dir.path().join("pixel.png");
+        fs::write(&file, png_fixture()).expect("write fixture");
+        let policy = authorized_policy(other.path());
+
+        let error = policy.allow(&file).expect_err("outside root must be rejected");
+        assert_eq!(error.code, "not_allowed");
+    }
+
+    #[test]
+    fn refuses_to_read_image_from_a_directory() {
+        let dir = tempdir().expect("temp dir");
+        let folder = dir.path().join("pictures.png");
+        fs::create_dir(&folder).expect("create dir");
+
+        let error = read_image_file_impl(&folder).expect_err("must reject directory");
+        assert_eq!(error.code, "not_a_file");
     }
 
     #[test]

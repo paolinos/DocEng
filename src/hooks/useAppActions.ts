@@ -11,7 +11,15 @@ import type {
   ProjectRootType,
   ViewMode,
 } from "../types";
-import { documentKindForPath, isDocumentDirty } from "../types";
+import {
+  CODE_FILE_EXTENSIONS,
+  documentKindForPath,
+  documentLanguageForPath,
+  isCodeFile,
+  isDocumentDirty,
+  MARKDOWN_FILE_EXTENSIONS,
+  TEXT_FILE_EXTENSIONS,
+} from "../types";
 import { errorMessage, fileSystem, isAppError } from "../lib/fs";
 import { parseProjectFile, serializeProject } from "../lib/projectFile";
 import { basename } from "../lib/utils";
@@ -95,7 +103,7 @@ function hasFileExtension(path: string): boolean {
 }
 
 function ensureFileExtension(path: string, kind: DocumentKind): string {
-  if (hasFileExtension(path)) return path;
+  if (hasFileExtension(path) || isCodeFile(path)) return path;
   return `${path}.${kind === "markdown" ? "md" : "txt"}`;
 }
 
@@ -201,6 +209,39 @@ export function useAppActions(): AppActions {
       const sequence = ++openSequence.current;
 
       try {
+        const kindHint = documentKindForPath(path);
+
+        if (kindHint === "image") {
+          const image = await fileSystem.readImageFile(path);
+          if (workspaceEpoch.current !== epoch) return;
+
+          const state = useDocumentStore.getState();
+          const alreadyOpen = findDocumentByPath(state, image.path);
+          if (alreadyOpen) {
+            state.activateDocument(alreadyOpen.id);
+            return;
+          }
+
+          state.openDocument(
+            {
+              path: image.path,
+              name: basename(image.path),
+              kind: "image",
+              language: null,
+              image: {
+                mimeType: image.mimeType,
+                dataUrl: image.dataUrl,
+              },
+              content: "",
+              savedContent: "",
+              size: image.size,
+              modifiedMs: image.modifiedMs,
+            },
+            sequence === openSequence.current,
+          );
+          return;
+        }
+
         const file = await fileSystem.readTextFile(path);
         if (workspaceEpoch.current !== epoch) return;
 
@@ -211,11 +252,15 @@ export function useAppActions(): AppActions {
           return;
         }
 
+        const kind = documentKindForPath(file.path);
+
         state.openDocument(
           {
             path: file.path,
             name: basename(file.path),
-            kind: documentKindForPath(file.path),
+            kind,
+            language: documentLanguageForPath(file.path, kind),
+            image: null,
             content: file.content,
             savedContent: file.content,
             size: file.size,
@@ -245,10 +290,14 @@ export function useAppActions(): AppActions {
     async function reloadDocument(id: string, path: string): Promise<void> {
       try {
         const file = await fileSystem.readTextFile(path);
+        const kind = documentKindForPath(file.path);
+
         useDocumentStore.getState().replaceDocument(id, {
           path: file.path,
           name: basename(file.path),
-          kind: documentKindForPath(file.path),
+          kind,
+          language: documentLanguageForPath(file.path, kind),
+          image: null,
           content: file.content,
           savedContent: file.content,
           size: file.size,
@@ -470,6 +519,8 @@ export function useAppActions(): AppActions {
           path: null,
           name: nextUntitledName(),
           kind: "markdown",
+          language: null,
+          image: null,
           content: "",
           savedContent: "",
           size: 0,
@@ -546,6 +597,11 @@ export function useAppActions(): AppActions {
           return;
         }
 
+        if (active.kind === "image") {
+          push("Images are read-only in this editor.", "info");
+          return;
+        }
+
         const {
           id,
           path: currentPath,
@@ -561,8 +617,12 @@ export function useAppActions(): AppActions {
               title: "Save File",
               defaultPath: await defaultSavePath(name),
               filters: [
-                { name: "Markdown", extensions: ["md", "markdown"] },
-                { name: "Text", extensions: ["txt"] },
+                {
+                  name: "Markdown",
+                  extensions: [...MARKDOWN_FILE_EXTENSIONS],
+                },
+                { name: "Text", extensions: [...TEXT_FILE_EXTENSIONS] },
+                { name: "Code", extensions: [...CODE_FILE_EXTENSIONS] },
                 { name: "All files", extensions: ["*"] },
               ],
             });
@@ -592,11 +652,15 @@ export function useAppActions(): AppActions {
               null,
             );
 
+            const savedKind = documentKindForPath(result.path);
+
             useDocumentStore.getState().markSaved({
               id,
               path: result.path,
               name: basename(result.path),
-              kind: documentKindForPath(result.path),
+              kind: savedKind,
+              language: documentLanguageForPath(result.path, savedKind),
+              image: null,
               content,
               size: result.size,
               modifiedMs: result.modifiedMs,
@@ -626,6 +690,8 @@ export function useAppActions(): AppActions {
             path: result.path,
             name,
             kind,
+            language: active.language,
+            image: active.image,
             content,
             size: result.size,
             modifiedMs: result.modifiedMs,

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { errorMessage, fileSystem } from "../lib/fs";
 import {
   documentKindForPath,
+  documentLanguageForPath,
   type OpenDocument,
   type Project,
   type ProjectRoot,
@@ -111,26 +112,59 @@ async function performRestore(): Promise<void> {
 
   for (const saved of snapshot.documents) {
     if (saved.path === null) {
-      documents.push({ ...saved });
+      documents.push({ ...saved, language: null, image: null });
       continue;
     }
 
     try {
+      const restoredKind = documentKindForPath(saved.path);
+
+      if (restoredKind === "image") {
+        // Image payloads are never persisted; reload the bytes from disk.
+        const image = await fileSystem.readImageFile(saved.path);
+
+        documents.push({
+          ...saved,
+          path: image.path,
+          name: basename(image.path),
+          kind: "image",
+          language: null,
+          image: { mimeType: image.mimeType, dataUrl: image.dataUrl },
+          content: "",
+          savedContent: "",
+          size: image.size,
+          modifiedMs: image.modifiedMs,
+        });
+        continue;
+      }
+
       if (saved.content !== saved.savedContent) {
         // Dirty documents keep the persisted buffer. Statting the path proves
         // it still exists and is still inside the authorized workspace.
         const info = await fileSystem.statPath(saved.path);
         if (!info.isFile) throw new Error("Path is no longer a file.");
 
-        documents.push({ ...saved, size: info.size });
+        const kind = documentKindForPath(saved.path);
+
+        documents.push({
+          ...saved,
+          kind,
+          language: documentLanguageForPath(saved.path, kind),
+          image: null,
+          size: info.size,
+        });
       } else {
         // Clean documents are reloaded so external edits are picked up.
         const file = await fileSystem.readTextFile(saved.path);
+        const kind = documentKindForPath(file.path);
+
         documents.push({
           ...saved,
           path: file.path,
           name: basename(file.path),
-          kind: documentKindForPath(file.path),
+          kind,
+          language: documentLanguageForPath(file.path, kind),
+          image: null,
           content: file.content,
           savedContent: file.content,
           size: file.size,

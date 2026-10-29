@@ -1,9 +1,11 @@
 import { create } from "zustand";
 import type {
   DocumentKind,
+  ImagePreviewData,
   OpenDocument,
   OpenDocumentInput,
 } from "../types";
+import { isDocumentDirty } from "../types";
 import { createId } from "../lib/utils";
 
 export interface DocumentSaveMetadata {
@@ -11,6 +13,8 @@ export interface DocumentSaveMetadata {
   path: string;
   name: string;
   kind: DocumentKind;
+  language: string | null;
+  image: ImagePreviewData | null;
   content: string;
   size: number;
   modifiedMs: number | null;
@@ -87,7 +91,17 @@ export const useDocumentStore = create<DocumentState>((set) => ({
       ),
     })),
 
-  markSaved: ({ id, path, name, kind, content, size, modifiedMs }) =>
+  markSaved: ({
+    id,
+    path,
+    name,
+    kind,
+    language,
+    image,
+    content,
+    size,
+    modifiedMs,
+  }) =>
     set((state) => ({
       documents: state.documents.map((doc) =>
         doc.id === id
@@ -96,6 +110,8 @@ export const useDocumentStore = create<DocumentState>((set) => ({
               path,
               name,
               kind,
+              language,
+              image,
               savedContent: content,
               size,
               modifiedMs,
@@ -131,9 +147,7 @@ export const selectActivePath = (state: DocumentState): string | null =>
   state.documents.find((doc) => doc.id === state.activeId)?.path ?? null;
 
 export const selectDirtyDocuments = (state: DocumentState): OpenDocument[] =>
-  state.documents.filter(
-    (doc) => doc.path === null || doc.content !== doc.savedContent,
-  );
+  state.documents.filter((doc) => isDocumentDirty(doc));
 
 export function findDocumentByPath(
   state: DocumentState,

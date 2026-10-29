@@ -168,5 +168,12 @@ function isRootType(value: unknown): value is ProjectRootType {
 }
 
 function isDocumentKind(value: unknown): value is DocumentKind {
-  return value === "markdown" || value === "text" || value === "unsupported";
+  return (
+    value === "markdown" ||
+    value === "text" ||
+    value === "code" ||
+    value === "image" ||
+    value === "likec4" ||
+    value === "unsupported"
+  );
 }

@@ -1,4 +1,14 @@
-import { Columns2, Eye, FileText, FolderTree, Pencil } from "lucide-react";
+import {
+  Columns2,
+  Eye,
+  File,
+  FileCode2,
+  FileText,
+  FolderTree,
+  Image as ImageIcon,
+  Network,
+  Pencil,
+} from "lucide-react";
 import { formatBytes } from "../lib/utils";
 import {
   selectActiveDocument,
@@ -6,7 +16,27 @@ import {
 } from "../stores/documentStore";
 import { useProjectStore } from "../stores/projectStore";
 import { useUiStore } from "../stores/uiStore";
-import { isDocumentDirty } from "../types";
+import {
+  imageMimeForPath,
+  isDocumentDirty,
+  isEditableKind,
+  type DocumentKind,
+} from "../types";
+
+function iconForKind(kind: DocumentKind) {
+  switch (kind) {
+    case "markdown":
+      return FileText;
+    case "code":
+      return FileCode2;
+    case "image":
+      return ImageIcon;
+    case "likec4":
+      return Network;
+    default:
+      return File;
+  }
+}
 
 const VIEW_LABELS = {
   edit: "Edit",
@@ -31,6 +61,12 @@ export function StatusBar() {
 
   const ViewIcon = VIEW_ICONS[viewMode];
   const docDirty = isDocumentDirty(doc);
+  const DocumentIcon = doc ? iconForKind(doc.kind) : FileText;
+  const imageMime =
+    doc?.kind === "image"
+      ? (doc.image?.mimeType ?? imageMimeForPath(doc.path ?? doc.name))
+      : null;
+  const imageFormat = imageMime?.replace(/^image\//, "").toUpperCase() ?? null;
 
   return (
     <footer className="statusbar" aria-label="Status bar">
@@ -48,7 +84,7 @@ export function StatusBar() {
       <div className="statusbar__divider" />
 
       <div className="statusbar__group statusbar__group--path">
-        <FileText size={12} />
+        <DocumentIcon size={12} />
         <span
           className="statusbar__path"
           title={doc?.path ?? projectFilePath ?? projectPath ?? undefined}
@@ -70,7 +106,23 @@ export function StatusBar() {
         </span>
       ) : null}
 
-      {doc ? <span className="statusbar__badge">UTF-8</span> : null}
+      {doc?.kind === "code" && doc.language ? (
+        <span className="statusbar__badge" title="Code language">
+          {doc.language}
+        </span>
+      ) : null}
+
+      {doc && isEditableKind(doc.kind) ? (
+        <span className="statusbar__badge" title="Text encoding">
+          UTF-8
+        </span>
+      ) : null}
+
+      {imageFormat ? (
+        <span className="statusbar__badge" title={imageMime ?? "Image"}>
+          {imageFormat}
+        </span>
+      ) : null}
 
       {tabCount > 1 ? (
         <span className="statusbar__badge" title="Open tabs">

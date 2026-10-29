@@ -2,9 +2,12 @@ import { useEffect, useState } from "react";
 import {
   ChevronRight,
   File,
+  FileCode2,
   FileText,
   Folder,
   FolderOpen,
+  Image as ImageIcon,
+  Network,
 } from "lucide-react";
 import type { PathInfo } from "../lib/fs";
 import { errorMessage, fileSystem } from "../lib/fs";
@@ -12,8 +15,38 @@ import { basename } from "../lib/utils";
 import { useDocumentStore, selectActivePath } from "../stores/documentStore";
 import { useProjectStore } from "../stores/projectStore";
 import { useToastStore } from "../stores/toastStore";
-import type { ProjectRoot } from "../types";
-import { isMarkdownFile } from "../types";
+import type { DocumentKind, ProjectRoot } from "../types";
+import { documentKindForPath } from "../types";
+
+function iconForKind(kind: DocumentKind) {
+  switch (kind) {
+    case "markdown":
+      return FileText;
+    case "code":
+      return FileCode2;
+    case "image":
+      return ImageIcon;
+    case "likec4":
+      return Network;
+    default:
+      return File;
+  }
+}
+
+function iconClassForKind(kind: DocumentKind): string {
+  switch (kind) {
+    case "markdown":
+      return "markdown";
+    case "code":
+      return "code";
+    case "image":
+      return "image";
+    case "likec4":
+      return "likec4";
+    default:
+      return "file";
+  }
+}
 
 interface TreeEntry {
   path: string;
@@ -93,13 +126,12 @@ function TreeNode({
 
   const isActive = !entry.isDir && activePath === entry.path;
 
+  const kind = entry.isDir ? null : documentKindForPath(entry.path);
   const Icon = entry.isDir
     ? expanded
       ? FolderOpen
       : Folder
-    : isMarkdownFile(entry.path)
-      ? FileText
-      : File;
+    : iconForKind(kind ?? "unsupported");
 
   function activate() {
     if (entry.isDir) {
@@ -138,9 +170,7 @@ function TreeNode({
           className={
             entry.isDir
               ? "tree__icon tree__icon--folder"
-              : isMarkdownFile(entry.path)
-                ? "tree__icon tree__icon--markdown"
-                : "tree__icon tree__icon--file"
+              : `tree__icon tree__icon--${iconClassForKind(kind ?? "unsupported")}`
           }
         />
         <span className="tree__label">{entry.name}</span>

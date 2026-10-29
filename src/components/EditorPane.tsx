@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import type { AppActions } from "../hooks/useAppActions";
 import { DocumentTabs } from "./DocumentTabs";
+import { ImagePreview } from "./ImagePreview";
 import { MarkdownPreview } from "./MarkdownPreview";
 import { formatShortcut } from "../lib/platform";
 import {
@@ -45,6 +46,7 @@ export function EditorPane({ actions }: EditorPaneProps) {
   const setViewMode = useUiStore((state) => state.setViewMode);
 
   const dirty = isDocumentDirty(doc);
+  const isImage = doc?.kind === "image";
 
   return (
     <main className="editor" aria-label="Editor">
@@ -83,34 +85,40 @@ export function EditorPane({ actions }: EditorPaneProps) {
 
         <div className="editor__header-spacer" />
 
-        <div
-          className="segmented"
-          role="group"
-          aria-label="Editor view mode"
-        >
-          {VIEW_MODES.map(({ mode, label, icon: Icon }) => (
-            <button
-              type="button"
-              key={mode}
-              className="segmented__button"
-              aria-pressed={viewMode === mode}
-              title={`${label} (${formatShortcut(
-                mode === "edit" ? "1" : mode === "split" ? "2" : "3",
-              )})`}
-              onClick={() => setViewMode(mode)}
-            >
-              <Icon size={13} />
-              <span>{label}</span>
-            </button>
-          ))}
-        </div>
+        {!isImage ? (
+          <div
+            className="segmented"
+            role="group"
+            aria-label="Editor view mode"
+          >
+            {VIEW_MODES.map(({ mode, label, icon: Icon }) => (
+              <button
+                type="button"
+                key={mode}
+                className="segmented__button"
+                aria-pressed={viewMode === mode}
+                title={`${label} (${formatShortcut(
+                  mode === "edit" ? "1" : mode === "split" ? "2" : "3",
+                )})`}
+                onClick={() => setViewMode(mode)}
+              >
+                <Icon size={13} />
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         <button
           type="button"
           className="icon-button"
-          title={`Save file (${formatShortcut("S")})`}
+          title={
+            isImage
+              ? "Images are read-only"
+              : `Save file (${formatShortcut("S")})`
+          }
           aria-label="Save file"
-          disabled={!doc}
+          disabled={!doc || isImage}
           onClick={actions.saveFile}
         >
           <Save size={16} />
@@ -121,32 +129,42 @@ export function EditorPane({ actions }: EditorPaneProps) {
         {doc ? (
           <div
             className={
-              viewMode === "split"
+              viewMode === "split" && doc.kind !== "image"
                 ? "editor__document editor__document--split"
                 : "editor__document"
             }
           >
-            {viewMode !== "preview" ? (
-              <textarea
-                key={doc.id}
-                className="editor__text"
-                aria-label={`Content of ${doc.name}`}
-                value={doc.content}
-                spellCheck={doc.kind === "markdown" || doc.kind === "text"}
-                autoFocus
-                onChange={(event) => updateContent(doc.id, event.target.value)}
-              />
-            ) : null}
+            {doc.kind === "image" ? (
+              <ImagePreview doc={doc} />
+            ) : (
+              <>
+                {viewMode !== "preview" ? (
+                  <textarea
+                    key={doc.id}
+                    className="editor__text"
+                    aria-label={`Content of ${doc.name}`}
+                    value={doc.content}
+                    spellCheck={doc.kind === "markdown" || doc.kind === "text"}
+                    autoFocus
+                    onChange={(event) =>
+                      updateContent(doc.id, event.target.value)
+                    }
+                  />
+                ) : null}
 
-            {viewMode !== "edit" ? (
-              <div className="editor__preview" aria-label="Preview">
-                {doc.kind === "markdown" ? (
-                  <MarkdownPreview source={doc.content} />
-                ) : (
-                  <pre className="editor__plain-preview">{doc.content}</pre>
-                )}
-              </div>
-            ) : null}
+                {viewMode !== "edit" ? (
+                  <div className="editor__preview" aria-label="Preview">
+                    {doc.kind === "markdown" ? (
+                      <MarkdownPreview source={doc.content} />
+                    ) : (
+                      <pre className="editor__plain-preview">
+                        {doc.content}
+                      </pre>
+                    )}
+                  </div>
+                ) : null}
+              </>
+            )}
           </div>
         ) : (
           <div className="welcome">

@@ -27,6 +27,14 @@ export interface WriteTextResult {
   modifiedMs: number | null;
 }
 
+export interface ImageFileInfo {
+  path: string;
+  mimeType: string;
+  dataUrl: string;
+  size: number;
+  modifiedMs: number | null;
+}
+
 export interface NewFileAuthorization {
   path: string;
   added: boolean;
@@ -81,6 +89,14 @@ export const fileSystem = {
 
   readTextFile(path: string): Promise<TextFileInfo> {
     return invoke<TextFileInfo>("read_text_file", { path });
+  },
+
+  /**
+   * Reads PNG/JPEG/WebP bytes as a base64 data URL. Images are preview-only;
+   * the payload is never written to the session database.
+   */
+  readImageFile(path: string): Promise<ImageFileInfo> {
+    return invoke<ImageFileInfo>("read_image_file", { path });
   },
 
   writeTextFile(

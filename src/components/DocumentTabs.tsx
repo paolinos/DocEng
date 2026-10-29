@@ -1,8 +1,46 @@
 import type { KeyboardEvent, MouseEvent } from "react";
-import { File, FileText, Plus, X } from "lucide-react";
+import {
+  File,
+  FileCode2,
+  FileText,
+  Image as ImageIcon,
+  Network,
+  Plus,
+  X,
+} from "lucide-react";
 import type { AppActions } from "../hooks/useAppActions";
 import { useDocumentStore } from "../stores/documentStore";
-import { isDocumentDirty, isMarkdownFile } from "../types";
+import { isDocumentDirty, type DocumentKind } from "../types";
+
+function iconForKind(kind: DocumentKind) {
+  switch (kind) {
+    case "markdown":
+      return FileText;
+    case "code":
+      return FileCode2;
+    case "image":
+      return ImageIcon;
+    case "likec4":
+      return Network;
+    default:
+      return File;
+  }
+}
+
+function iconClassForKind(kind: DocumentKind): string {
+  switch (kind) {
+    case "markdown":
+      return "markdown";
+    case "code":
+      return "code";
+    case "image":
+      return "image";
+    case "likec4":
+      return "likec4";
+    default:
+      return "file";
+  }
+}
 
 interface DocumentTabsProps {
   actions: AppActions;
@@ -59,7 +97,7 @@ export function DocumentTabs({ actions }: DocumentTabsProps) {
         {documents.map((doc) => {
           const isActive = doc.id === activeId;
           const dirty = isDocumentDirty(doc);
-          const Icon = isMarkdownFile(doc.path ?? doc.name) ? FileText : File;
+          const Icon = iconForKind(doc.kind);
 
           return (
             <div
@@ -78,11 +116,7 @@ export function DocumentTabs({ actions }: DocumentTabsProps) {
             >
               <Icon
                 size={13}
-                className={
-                  isMarkdownFile(doc.path ?? doc.name)
-                    ? "editor-tab__icon editor-tab__icon--markdown"
-                    : "editor-tab__icon"
-                }
+                className={`editor-tab__icon editor-tab__icon--${iconClassForKind(doc.kind)}`}
               />
               <span className="editor-tab__label">{doc.name}</span>
               {dirty ? (

@@ -4,7 +4,7 @@ mod path_policy;
 mod session;
 
 use fs_ops::{
-    authorize_new_file, canonicalize_path, list_directory, read_text_file,
+    authorize_new_file, canonicalize_path, list_directory, read_image_file, read_text_file,
     restore_project_roots, set_project_roots, stat_path, write_text_file,
 };
 use path_policy::PathPolicy;
@@ -26,6 +26,7 @@ pub fn run() {
             authorize_new_file,
             canonicalize_path,
             list_directory,
+            read_image_file,
             read_text_file,
             restore_project_roots,
             session_load,

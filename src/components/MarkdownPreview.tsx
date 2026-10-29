@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { MermaidDiagram } from "./MermaidDiagram";
 
 interface MarkdownPreviewProps {
   source: string;
@@ -131,7 +132,7 @@ function renderBlocks(source: string): ReactNode[] {
     const fence = /^\s*```(\w*)\s*$/.exec(line);
     if (fence) {
       flushAll();
-      const language = fence[1];
+      const language = fence[1].toLowerCase();
       const code: string[] = [];
       index += 1;
 
@@ -140,13 +141,22 @@ function renderBlocks(source: string): ReactNode[] {
         index += 1;
       }
 
-      blocks.push(
-        <pre key={`code-${blocks.length}`} className="markdown-preview__code">
-          <code className={language ? `language-${language}` : undefined}>
-            {code.join("\n")}
-          </code>
-        </pre>,
-      );
+      if (language === "mermaid") {
+        blocks.push(
+          <MermaidDiagram
+            key={`mermaid-${blocks.length}`}
+            source={code.join("\n")}
+          />,
+        );
+      } else {
+        blocks.push(
+          <pre key={`code-${blocks.length}`} className="markdown-preview__code">
+            <code className={language ? `language-${language}` : undefined}>
+              {code.join("\n")}
+            </code>
+          </pre>,
+        );
+      }
       index += 1;
       continue;
     }
