@@ -6,9 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "typecheck": "tsc --noEmit",
-    "preview": "vite preview",
-    "tauri": "tauri"
+    "test": "jest",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@likec4/diagram": "1.60.0",
@@ -16,6 +15,7 @@
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.8.4",
     "@tauri-apps/plugin-opener": "^2",
+    "@types/jest": "^30.0.0",
     "lucide-react": "^1.63.0",
     "mermaid": "12.2.0",
     "react": "^19.3.0",
@@ -27,6 +27,8 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.0.2",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.4.15",
     "typescript": "~6.0.3",
     "vite": "^8.0.16"
   }
