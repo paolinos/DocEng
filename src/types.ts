@@ -17,6 +17,7 @@ export type ViewMode = "edit" | "split" | "preview";
 export type DocumentKind = "markdown" | "text" | "unsupported";
 
 export interface OpenDocument {
+  id: string;
   path: string | null;
   name: string;
   kind: DocumentKind;
@@ -25,6 +26,8 @@ export interface OpenDocument {
   size: number;
   modifiedMs: number | null;
 }
+
+export type OpenDocumentInput = Omit<OpenDocument, "id">;
 
 export function isDocumentDirty(doc: OpenDocument | null): boolean {
   return (
@@ -38,4 +41,10 @@ export function isMarkdownFile(path: string): boolean {
 
 export function isTextFile(path: string): boolean {
   return /\.txt$/i.test(path);
+}
+
+export function documentKindForPath(path: string): DocumentKind {
+  if (isMarkdownFile(path)) return "markdown";
+  if (isTextFile(path)) return "text";
+  return "unsupported";
 }

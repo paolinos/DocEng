@@ -9,6 +9,13 @@ function createEmptyProject(): Project {
   };
 }
 
+export interface ProjectRestoreMetadata {
+  projectPath: string | null;
+  projectFilePath: string | null;
+  projectFileModifiedMs: number | null;
+  dirty: boolean;
+}
+
 interface ProjectState {
   project: Project;
   projectPath: string | null;
@@ -21,6 +28,7 @@ interface ProjectState {
   setRoots: (roots: ProjectRoot[]) => void;
   addRoot: (root: ProjectRoot) => void;
   replaceProject: (project: Project, projectPath: string | null) => void;
+  restoreProject: (project: Project, metadata: ProjectRestoreMetadata) => void;
   setProjectFile: (path: string | null, modifiedMs?: number | null) => void;
   markProjectSaved: (metadata: {
     path: string;
@@ -68,6 +76,16 @@ export const useProjectStore = create<ProjectState>((set) => ({
       projectFilePath: null,
       projectFileModifiedMs: null,
       dirty: false,
+      explorerRevision: state.explorerRevision + 1,
+    })),
+
+  restoreProject: (project, metadata) =>
+    set((state) => ({
+      project,
+      projectPath: metadata.projectPath,
+      projectFilePath: metadata.projectFilePath,
+      projectFileModifiedMs: metadata.projectFileModifiedMs,
+      dirty: metadata.dirty,
       explorerRevision: state.explorerRevision + 1,
     })),
 

@@ -4,10 +4,21 @@ import type { AppActions } from "./useAppActions";
 /**
  * Global keyboard shortcuts. Menu shortcuts are kept in sync with MenuBar.
  */
-export function useKeyboardShortcuts(actions: AppActions): void {
+export function useKeyboardShortcuts(
+  actions: AppActions,
+  enabled = true,
+): void {
   useEffect(() => {
+    if (!enabled) return;
+
     function onKeyDown(event: KeyboardEvent) {
       if (!(event.metaKey || event.ctrlKey)) return;
+
+      if (event.key === "Tab") {
+        event.preventDefault();
+        actions.cycleTab(event.shiftKey ? -1 : 1);
+        return;
+      }
 
       switch (event.key.toLowerCase()) {
         case "s":
@@ -17,6 +28,10 @@ export function useKeyboardShortcuts(actions: AppActions): void {
           } else {
             actions.saveFile();
           }
+          break;
+        case "w":
+          event.preventDefault();
+          actions.closeFile();
           break;
         case "n":
           event.preventDefault();
@@ -51,5 +66,5 @@ export function useKeyboardShortcuts(actions: AppActions): void {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [actions]);
+  }, [actions, enabled]);
 }

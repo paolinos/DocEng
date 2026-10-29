@@ -11,11 +11,16 @@ import type {
   ProjectRootType,
   ViewMode,
 } from "../types";
-import { isDocumentDirty, isMarkdownFile, isTextFile } from "../types";
+import { documentKindForPath, isDocumentDirty } from "../types";
 import { errorMessage, fileSystem, isAppError } from "../lib/fs";
 import { parseProjectFile, serializeProject } from "../lib/projectFile";
 import { basename } from "../lib/utils";
-import { useDocumentStore } from "../stores/documentStore";
+import {
+  findDocumentByPath,
+  selectActiveDocument,
+  selectDirtyDocuments,
+  useDocumentStore,
+} from "../stores/documentStore";
 import { useProjectStore } from "../stores/projectStore";
 import { useToastStore } from "../stores/toastStore";
 import { useUiStore } from "../stores/uiStore";
@@ -31,7 +36,10 @@ export interface AppActions {
   addFolder: () => Promise<void>;
   openFile: (path: string) => Promise<void>;
   saveFile: () => Promise<void>;
-  closeFile: () => void;
+  closeFile: (id?: string) => void;
+  closeAllFiles: () => void;
+  activateFile: (id: string) => void;
+  cycleTab: (direction: 1 | -1) => void;
   toggleSidebar: () => void;
   setViewMode: (mode: ViewMode) => void;
   resetLayout: () => void;
@@ -41,7 +49,16 @@ export interface AppActions {
 let untitledSequence = 1;
 
 function nextUntitledName(): string {
-  return `Untitled-${untitledSequence++}.md`;
+  const existing = new Set(
+    useDocumentStore.getState().documents.map((doc) => doc.name),
+  );
+
+  let name = `Untitled-${untitledSequence++}.md`;
+  while (existing.has(name)) {
+    name = `Untitled-${untitledSequence++}.md`;
+  }
+
+  return name;
 }
 
 function createRootId(): string {
@@ -54,12 +71,6 @@ function createRootId(): string {
 
 function createRoot(path: string, type: ProjectRootType): ProjectRoot {
   return { id: createRootId(), path, type };
-}
-
-function documentKind(path: string): DocumentKind {
-  if (isMarkdownFile(path)) return "markdown";
-  if (isTextFile(path)) return "text";
-  return "unsupported";
 }
 
 /**
@@ -163,7 +174,8 @@ async function defaultProjectSavePath(
 
 export function useAppActions(): AppActions {
   const push = useToastStore((state) => state.push);
-  const openRequest = useRef(0);
+  const workspaceEpoch = useRef(0);
+  const openSequence = useRef(0);
 
   return useMemo<AppActions>(() => {
     function reportError(error: unknown): void {
@@ -171,47 +183,48 @@ export function useAppActions(): AppActions {
     }
 
     function confirmDiscard(message: string): boolean {
-      const doc = useDocumentStore.getState().doc;
-      const docDirty = doc !== null && isDocumentDirty(doc);
+      const dirtyDocuments = selectDirtyDocuments(useDocumentStore.getState());
       const projectDirty = useProjectStore.getState().dirty;
 
-      if (!docDirty && !projectDirty) return true;
+      if (dirtyDocuments.length === 0 && !projectDirty) return true;
       return window.confirm(message);
     }
 
-    async function actionsOpenFile(
-      path: string,
-      force = false,
-    ): Promise<void> {
-      const state = useDocumentStore.getState();
-      if (!force && state.doc?.path === path) return;
-
-      if (
-        !force &&
-        state.doc &&
-        isDocumentDirty(state.doc) &&
-        !window.confirm(`Discard unsaved changes to "${state.doc.name}"?`)
-      ) {
+    async function actionsOpenFile(path: string): Promise<void> {
+      const existing = findDocumentByPath(useDocumentStore.getState(), path);
+      if (existing) {
+        useDocumentStore.getState().activateDocument(existing.id);
         return;
       }
 
-      const requestId = ++openRequest.current;
+      const epoch = workspaceEpoch.current;
+      const sequence = ++openSequence.current;
 
       try {
         const file = await fileSystem.readTextFile(path);
-        if (openRequest.current !== requestId) return;
+        if (workspaceEpoch.current !== epoch) return;
 
-        useDocumentStore.getState().open({
-          path: file.path,
-          name: basename(file.path),
-          kind: documentKind(file.path),
-          content: file.content,
-          savedContent: file.content,
-          size: file.size,
-          modifiedMs: file.modifiedMs,
-        });
+        const state = useDocumentStore.getState();
+        const alreadyOpen = findDocumentByPath(state, file.path);
+        if (alreadyOpen) {
+          state.activateDocument(alreadyOpen.id);
+          return;
+        }
+
+        state.openDocument(
+          {
+            path: file.path,
+            name: basename(file.path),
+            kind: documentKindForPath(file.path),
+            content: file.content,
+            savedContent: file.content,
+            size: file.size,
+            modifiedMs: file.modifiedMs,
+          },
+          sequence === openSequence.current,
+        );
       } catch (error) {
-        if (openRequest.current !== requestId) return;
+        if (workspaceEpoch.current !== epoch) return;
 
         if (isAppError(error) && error.code === "binary_file") {
           push(
@@ -221,6 +234,27 @@ export function useAppActions(): AppActions {
           return;
         }
 
+        reportError(error);
+      }
+    }
+
+    /**
+     * Replaces the contents of an existing tab with the current on-disk file.
+     * Used after the user chooses to discard local edits on a save conflict.
+     */
+    async function reloadDocument(id: string, path: string): Promise<void> {
+      try {
+        const file = await fileSystem.readTextFile(path);
+        useDocumentStore.getState().replaceDocument(id, {
+          path: file.path,
+          name: basename(file.path),
+          kind: documentKindForPath(file.path),
+          content: file.content,
+          savedContent: file.content,
+          size: file.size,
+          modifiedMs: file.modifiedMs,
+        });
+      } catch (error) {
         reportError(error);
       }
     }
@@ -326,14 +360,14 @@ export function useAppActions(): AppActions {
     async function newProjectAction(): Promise<void> {
       if (
         !confirmDiscard(
-          "This document or project has unsaved changes. Discard them and create a new project?",
+          "The open files or project have unsaved changes. Discard them and create a new project?",
         )
       ) {
         return;
       }
 
-      openRequest.current += 1;
-      useDocumentStore.getState().close();
+      workspaceEpoch.current += 1;
+      useDocumentStore.getState().closeAllDocuments();
       useProjectStore.getState().newProject();
 
       // A new workspace starts empty, so revoke access to the old project's
@@ -359,7 +393,7 @@ export function useAppActions(): AppActions {
 
         if (
           !confirmDiscard(
-            "This document or project has unsaved changes. Discard them and open another project?",
+            "The open files or project have unsaved changes. Discard them and open another project?",
           )
         ) {
           return;
@@ -380,10 +414,10 @@ export function useAppActions(): AppActions {
           roots: canonicalRoots,
         };
 
-        openRequest.current += 1;
+        workspaceEpoch.current += 1;
         useProjectStore.getState().replaceProject(project, null);
         useProjectStore.getState().setProjectFile(file.path, file.modifiedMs);
-        useDocumentStore.getState().close();
+        useDocumentStore.getState().closeAllDocuments();
         push(`Project "${project.name}" opened.`, "success");
       } catch (error) {
         reportError(error);
@@ -403,7 +437,7 @@ export function useAppActions(): AppActions {
 
         if (
           !confirmDiscard(
-            "This document or project has unsaved changes. Discard them and open another project?",
+            "The open files or project have unsaved changes. Discard them and open another project?",
           )
         ) {
           return;
@@ -413,10 +447,10 @@ export function useAppActions(): AppActions {
         const name = basename(roots[0].path) || "Untitled Project";
         const project: Project = { version: 1, name, roots };
 
-        openRequest.current += 1;
+        workspaceEpoch.current += 1;
         useProjectStore.getState().replaceProject(project, roots[0].path);
         useProjectStore.getState().markDirty();
-        useDocumentStore.getState().close();
+        useDocumentStore.getState().closeAllDocuments();
         push(`Opened folder "${name}" as a project.`, "success");
       } catch (error) {
         reportError(error);
@@ -431,19 +465,8 @@ export function useAppActions(): AppActions {
       saveProjectAs: saveProjectAsAction,
 
       newFile: () => {
-        const doc = useDocumentStore.getState().doc;
-        if (
-          doc &&
-          isDocumentDirty(doc) &&
-          !window.confirm(
-            `Discard unsaved changes to "${doc.name}" and create a new file?`,
-          )
-        ) {
-          return;
-        }
-
-        openRequest.current += 1;
-        useDocumentStore.getState().open({
+        openSequence.current += 1;
+        useDocumentStore.getState().openDocument({
           path: null,
           name: nextUntitledName(),
           kind: "markdown",
@@ -517,19 +540,20 @@ export function useAppActions(): AppActions {
       },
 
       saveFile: async () => {
-        const doc = useDocumentStore.getState().doc;
-        if (!doc) {
+        const active = selectActiveDocument(useDocumentStore.getState());
+        if (!active) {
           push("No file is open.", "info");
           return;
         }
 
         const {
+          id,
           path: currentPath,
           content,
           modifiedMs,
           name,
           kind,
-        } = doc;
+        } = active;
 
         try {
           if (currentPath === null) {
@@ -547,6 +571,21 @@ export function useAppActions(): AppActions {
 
             const target = ensureFileExtension(selected, kind);
             const authorization = await fileSystem.authorizeNewFile(target);
+
+            const alreadyOpen = findDocumentByPath(
+              useDocumentStore.getState(),
+              authorization.path,
+            );
+            if (alreadyOpen && alreadyOpen.id !== id) {
+              useDocumentStore.getState().activateDocument(alreadyOpen.id);
+              push(
+                `"${alreadyOpen.name}" is already open in another tab. Choose a different path or close that tab first.`,
+                "warning",
+                7000,
+              );
+              return;
+            }
+
             const result = await fileSystem.writeTextFile(
               authorization.path,
               content,
@@ -554,10 +593,10 @@ export function useAppActions(): AppActions {
             );
 
             useDocumentStore.getState().markSaved({
-              previousPath: currentPath,
+              id,
               path: result.path,
               name: basename(result.path),
-              kind: documentKind(result.path),
+              kind: documentKindForPath(result.path),
               content,
               size: result.size,
               modifiedMs: result.modifiedMs,
@@ -583,7 +622,7 @@ export function useAppActions(): AppActions {
             modifiedMs,
           );
           useDocumentStore.getState().markSaved({
-            previousPath: currentPath,
+            id,
             path: result.path,
             name,
             kind,
@@ -603,7 +642,7 @@ export function useAppActions(): AppActions {
             );
 
             if (reload) {
-              await actionsOpenFile(currentPath, true);
+              await reloadDocument(id, currentPath);
             }
             return;
           }
@@ -612,21 +651,55 @@ export function useAppActions(): AppActions {
         }
       },
 
-      closeFile: () => {
-        const doc = useDocumentStore.getState().doc;
-        if (!doc) return;
+      closeFile: (id?: string) => {
+        const state = useDocumentStore.getState();
+        const target = id
+          ? (state.documents.find((doc) => doc.id === id) ?? null)
+          : selectActiveDocument(state);
+
+        if (!target) return;
 
         if (
-          isDocumentDirty(doc) &&
-          !window.confirm(`Discard unsaved changes to "${doc.name}"?`)
+          isDocumentDirty(target) &&
+          !window.confirm(`Discard unsaved changes to "${target.name}"?`)
         ) {
           return;
         }
 
-        openRequest.current += 1;
-        useDocumentStore.getState().close();
-        push("File closed.", "info");
+        useDocumentStore.getState().closeDocument(target.id);
+        push(`Closed "${target.name}".`, "info");
       },
+
+      closeAllFiles: () => {
+        const dirtyDocuments = selectDirtyDocuments(useDocumentStore.getState());
+        if (dirtyDocuments.length === 0) {
+          if (useDocumentStore.getState().documents.length === 0) return;
+          useDocumentStore.getState().closeAllDocuments();
+          push("All files closed.", "info");
+          return;
+        }
+
+        const label =
+          dirtyDocuments.length === 1
+            ? `"${dirtyDocuments[0].name}"`
+            : `${dirtyDocuments.length} files`;
+
+        if (
+          !window.confirm(
+            `Discard unsaved changes to ${label} and close all files?`,
+          )
+        ) {
+          return;
+        }
+
+        useDocumentStore.getState().closeAllDocuments();
+        push("All files closed.", "info");
+      },
+
+      activateFile: (id) => useDocumentStore.getState().activateDocument(id),
+
+      cycleTab: (direction) =>
+        useDocumentStore.getState().cycleDocument(direction),
 
       toggleSidebar: () => useUiStore.getState().toggleSidebar(),
 

@@ -15,20 +15,25 @@ Phases 0–2 are complete, with a basic Markdown preview from Phase 3:
 - [x] 30 / 70 workspace with a draggable divider and collapsible sidebar
 - [x] In-app menu bar: Project, File, View, Help
 - [x] Keyboard shortcuts (`Ctrl/Cmd+B`, `Ctrl/Cmd+N`, `Ctrl/Cmd+Alt+N`,
-      `Ctrl/Cmd+O`, `Ctrl/Cmd+S`, `Ctrl/Cmd+Shift+S`, `Ctrl/Cmd+1/2/3`)
+      `Ctrl/Cmd+O`, `Ctrl/Cmd+S`, `Ctrl/Cmd+Shift+S`, `Ctrl/Cmd+W`,
+      `Ctrl/Cmd+Tab`, `Ctrl/Cmd+1/2/3`)
 - [x] Zustand stores for project, document, UI, and notifications
 - [x] Rust filesystem commands with a canonical-path allowlist
 - [x] Atomic text-file writes, UTF-8 / binary / size checks, mtime conflicts
-- [x] Rust unit tests for the filesystem and path-policy layers
+- [x] Rust unit tests for the filesystem, path-policy, and session layers
 - [x] Native folder/file pickers with project-root authorization
 - [x] Lazy explorer tree backed by `list_directory`
-- [x] Open/read text files into the editor with dirty tracking
+- [x] Multiple documents in a scrollable tab strip
+- [x] Open/read text files into the editor with per-tab dirty tracking
 - [x] Save with `Ctrl/Cmd+S`, mtime conflict detection, and reload recovery
-- [x] Temporary untitled documents (`Ctrl/Cmd+Alt+N`) that prompt on discard
-      and use a native save dialog for their first save
+- [x] Untitled documents (`Ctrl/Cmd+Alt+N`) that use a native save dialog for
+      their first save
 - [x] Basic Markdown preview (headings, lists, quotes, code, inline styles)
 - [x] Real project YAML save, save as, and reopen
 - [x] Optional projects: start with a folder or file and save the project later
+- [x] SQLite session restore for the project, open tabs, tab order, active tab,
+      and unsaved edits
+- [x] Missing saved paths are skipped with a warning instead of aborting
 
 Folders, files, and documents can be opened from a cold start without creating
 a project first. Adding a folder or file, or saving a new document, starts an
@@ -45,6 +50,34 @@ New files are kept in memory under an `Untitled-N.md` name until the first
 save. The first save asks for a destination; saving outside the current project
 adds that exact file to the workspace so it can still be read and written
 later.
+
+## Tabs and session restore
+
+Opening another file adds a tab; reopening a file that is already open activates
+its existing tab instead of creating a duplicate. Switching tabs never discards
+or prompts about edits. Save (`Ctrl/Cmd+S`) applies to the active tab, and
+`Ctrl/Cmd+W` closes it after a per-tab discard prompt when it is dirty.
+`Ctrl/Cmd+Tab` and `Ctrl/Cmd+Shift+Tab` cycle tabs. Changing projects or
+creating a new one prompts once for all dirty tabs.
+
+The project (including an unsaved implicit project), open tabs, tab order,
+active tab, and unsaved buffers are restored on launch. State is stored in a
+SQLite database at `<app data dir>/docu.db`:
+
+- Linux: `~/.local/share/docu/docu.db` (depending on the desktop environment)
+- macOS: `~/Library/Application Support/docu/docu.db`
+- Windows: `%APPDATA%\docu\docu.db`
+
+On startup, saved project roots and files are re-authorized. Paths that no
+longer exist are skipped and listed in a warning; the rest of the workspace is
+still restored. Clean files are reloaded from disk, while dirty files and
+untitled documents keep their in-memory contents. If the database cannot be
+read, the app starts with an empty session and keeps the unreadable file as
+`docu.db.bak` when possible.
+
+Session content is also written on every tab or project change and about half a
+second after the last edit. Closing the window flushes any pending write before
+the window is destroyed.
 
 ## Prerequisites
 
@@ -82,17 +115,18 @@ cargo test
 
 ```
 src/
-  components/       Menu bar, sidebar, editor shell, status bar, toasts
-  hooks/            Global shortcuts and app actions
-  lib/              Tauri filesystem wrappers, project YAML, shared helpers
-  stores/           Zustand: project, document, UI, notifications
+  components/       Menu bar, sidebar, tab strip, editor shell, status bar, toasts
+  hooks/            Global shortcuts, app actions, session restore/persistence
+  lib/              Tauri filesystem/session wrappers, project YAML, helpers
+  stores/           Zustand: project, document tabs, UI, notifications
   types.ts          Project and document types
 
 src-tauri/src/
   error.rs          Serializable AppError returned over IPC
   fs_ops.rs         project-root authorization, list/stat/read/write commands
   path_policy.rs    Canonical root allowlist (project boundary)
-  lib.rs            Tauri builder and command registration
+  session.rs        SQLite session schema, migrations, load/save commands
+  lib.rs            Tauri builder, session DB setup, command registration
 ```
 
 The Rust layer owns filesystem access. The frontend never talks to the disk
@@ -100,6 +134,11 @@ directly. Paths are canonicalized and must be inside one of the roots authorized
 by the open project, which also prevents symlinks from escaping the project.
 First-time saves call `authorize_new_file`, which authorizes the exact target
 path without granting access to the rest of its folder.
+
+The session database is also owned by Rust (`rusqlite`, with bundled SQLite).
+Each save replaces the snapshot inside one transaction; `PRAGMA user_version`
+tracks schema migrations. The frontend sends only a validated snapshot and does
+not access SQLite directly.
 
 ## Project file
 
@@ -129,7 +168,9 @@ reference paths the user is still allowed to access.
 - **Phase 0 — Foundation:** shell, menus, stores, filesystem layer. ✅
 - **Phase 1 — Projects:** folder/file pickers, add files/folders, file tree,
   YAML save/save-as/open. ✅
-- **Phase 2 — Editing:** load, edit, dirty state, `Ctrl/Cmd+S`, conflicts. ✅
+- **Phase 2 — Editing:** multi-tab editing, dirty state, `Ctrl/Cmd+S`,
+  conflicts, and SQLite session restore. ✅
 - **Phase 3 — Markdown:** basic preview included; full GFM rendering and polish
   remain.
-- **Phase 4 — Hardening:** settings, watchers, tests, packaging.
+- **Phase 4 — Hardening:** settings, watchers, tests, packaging, session schema
+  migrations.

@@ -1,6 +1,9 @@
 import { Columns2, Eye, FileText, FolderTree, Pencil } from "lucide-react";
 import { formatBytes } from "../lib/utils";
-import { useDocumentStore } from "../stores/documentStore";
+import {
+  selectActiveDocument,
+  useDocumentStore,
+} from "../stores/documentStore";
 import { useProjectStore } from "../stores/projectStore";
 import { useUiStore } from "../stores/uiStore";
 import { isDocumentDirty } from "../types";
@@ -18,7 +21,8 @@ const VIEW_ICONS = {
 } as const;
 
 export function StatusBar() {
-  const doc = useDocumentStore((state) => state.doc);
+  const doc = useDocumentStore(selectActiveDocument);
+  const tabCount = useDocumentStore((state) => state.documents.length);
   const project = useProjectStore((state) => state.project);
   const projectPath = useProjectStore((state) => state.projectPath);
   const projectFilePath = useProjectStore((state) => state.projectFilePath);
@@ -67,6 +71,12 @@ export function StatusBar() {
       ) : null}
 
       {doc ? <span className="statusbar__badge">UTF-8</span> : null}
+
+      {tabCount > 1 ? (
+        <span className="statusbar__badge" title="Open tabs">
+          {tabCount} tabs
+        </span>
+      ) : null}
 
       <span className="statusbar__badge statusbar__badge--view">
         <ViewIcon size={11} />

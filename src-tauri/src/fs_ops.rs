@@ -76,6 +76,20 @@ pub struct NewFileAuthorization {
     pub added: bool,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoredRoot {
+    pub original_path: String,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RestoreRootsResult {
+    pub roots: Vec<RestoredRoot>,
+    pub missing: Vec<String>,
+}
+
 #[tauri::command]
 pub fn list_directory(path: String, policy: State<'_, PathPolicy>) -> AppResult<Vec<PathInfo>> {
     let canonical = policy.allow(Path::new(&path))?;
@@ -124,6 +138,55 @@ pub fn authorize_new_file(
     Ok(NewFileAuthorization {
         path: canonical.to_string_lossy().into_owned(),
         added,
+    })
+}
+
+/// Re-authorizes saved project roots during startup, skipping any path that
+/// no longer exists or can no longer be canonicalized.
+#[tauri::command]
+pub fn restore_project_roots(
+    paths: Vec<String>,
+    policy: State<'_, PathPolicy>,
+) -> AppResult<RestoreRootsResult> {
+    restore_project_roots_impl(paths, &policy)
+}
+
+fn restore_project_roots_impl(
+    paths: Vec<String>,
+    policy: &PathPolicy,
+) -> AppResult<RestoreRootsResult> {
+    let mut accepted = Vec::new();
+    let mut canonical_for_policy: Vec<PathBuf> = Vec::new();
+    let mut missing = Vec::new();
+
+    for original in paths {
+        let path = Path::new(&original);
+
+        if !path.is_absolute() {
+            missing.push(original);
+            continue;
+        }
+
+        match path.canonicalize() {
+            Ok(canonical) if canonical.exists() => {
+                accepted.push(RestoredRoot {
+                    original_path: original,
+                    path: canonical.to_string_lossy().into_owned(),
+                });
+
+                if !canonical_for_policy.contains(&canonical) {
+                    canonical_for_policy.push(canonical);
+                }
+            }
+            _ => missing.push(original),
+        }
+    }
+
+    policy.set_roots(canonical_for_policy)?;
+
+    Ok(RestoreRootsResult {
+        roots: accepted,
+        missing,
     })
 }
 
@@ -474,5 +537,53 @@ mod tests {
 
         let error = write_text_file_impl(&nested, "no", None).expect_err("must reject directory");
         assert_eq!(error.code, "not_a_file");
+    }
+
+    #[test]
+    fn restores_existing_roots_and_skips_missing_ones() {
+        let dir = tempdir().expect("temp dir");
+        let folder = dir.path().join("notes");
+        fs::create_dir(&folder).expect("create folder");
+        let file = folder.join("todo.md");
+        fs::write(&file, "todo").expect("write fixture");
+        let missing = dir.path().join("gone").to_string_lossy().into_owned();
+
+        let policy = PathPolicy::default();
+        let result = restore_project_roots_impl(
+            vec![folder.to_string_lossy().into_owned(), missing.clone()],
+            &policy,
+        )
+        .expect("restore roots");
+
+        assert_eq!(result.roots.len(), 1);
+        assert_eq!(result.missing, vec![missing]);
+        assert!(policy.allow(&file).is_ok());
+    }
+
+    #[test]
+    fn restoring_no_roots_clears_authorization() {
+        let dir = tempdir().expect("temp dir");
+        let policy = authorized_policy(dir.path());
+        let file = dir.path().join("note.md");
+        fs::write(&file, "note").expect("write fixture");
+        assert!(policy.allow(&file).is_ok());
+
+        let result = restore_project_roots_impl(vec![], &policy).expect("restore roots");
+        assert!(result.roots.is_empty());
+        assert_eq!(
+            policy.allow(&file).expect_err("must clear").code,
+            "not_allowed"
+        );
+    }
+
+    #[test]
+    fn restore_skips_relative_roots() {
+        let policy = PathPolicy::default();
+        let result = restore_project_roots_impl(vec!["relative/folder".into()], &policy)
+            .expect("restore roots");
+
+        assert!(result.roots.is_empty());
+        assert_eq!(result.missing, vec!["relative/folder"]);
+        assert!(policy.roots().is_empty());
     }
 }

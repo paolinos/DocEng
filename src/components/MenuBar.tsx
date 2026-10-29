@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import type { ComponentType, KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
   Check,
+  ChevronLeft,
+  ChevronRight,
   Columns2,
   Eye,
   FilePlus,
@@ -18,7 +20,10 @@ import {
 } from "lucide-react";
 import { formatShortcut } from "../lib/platform";
 import type { AppActions } from "../hooks/useAppActions";
-import { useDocumentStore } from "../stores/documentStore";
+import {
+  selectActiveDocument,
+  useDocumentStore,
+} from "../stores/documentStore";
 import {
   selectCanSaveProject,
   useProjectStore,
@@ -71,7 +76,8 @@ export function MenuBar({ actions }: MenuBarProps) {
   const viewMode = useUiStore((state) => state.viewMode);
   const canSaveProject = useProjectStore(selectCanSaveProject);
   const projectName = useProjectStore((state) => state.project.name);
-  const doc = useDocumentStore((state) => state.doc);
+  const doc = useDocumentStore(selectActiveDocument);
+  const tabCount = useDocumentStore((state) => state.documents.length);
   const hasDocument = doc !== null;
 
   const menus: Record<MenuId, MenuDefinition> = {
@@ -150,10 +156,18 @@ export function MenuBar({ actions }: MenuBarProps) {
         },
         {
           id: "close-file",
-          label: "Close File",
+          label: "Close Tab",
           icon: X,
+          shortcut: formatShortcut("W"),
           disabled: !hasDocument,
           action: actions.closeFile,
+        },
+        {
+          id: "close-all-files",
+          label: "Close All Tabs",
+          icon: X,
+          disabled: tabCount === 0,
+          action: actions.closeAllFiles,
         },
       ],
     },
@@ -194,6 +208,23 @@ export function MenuBar({ actions }: MenuBarProps) {
           action: () => actions.setViewMode("preview"),
         },
         { id: "view-sep-2", type: "separator" },
+        {
+          id: "next-tab",
+          label: "Next Tab",
+          icon: ChevronRight,
+          shortcut: formatShortcut("Tab"),
+          disabled: tabCount < 2,
+          action: () => actions.cycleTab(1),
+        },
+        {
+          id: "previous-tab",
+          label: "Previous Tab",
+          icon: ChevronLeft,
+          shortcut: formatShortcut("Tab", { shift: true }),
+          disabled: tabCount < 2,
+          action: () => actions.cycleTab(-1),
+        },
+        { id: "view-sep-3", type: "separator" },
         {
           id: "reset-layout",
           label: "Reset Layout",

@@ -10,10 +10,13 @@ import {
   Save,
 } from "lucide-react";
 import type { AppActions } from "../hooks/useAppActions";
+import { DocumentTabs } from "./DocumentTabs";
 import { MarkdownPreview } from "./MarkdownPreview";
 import { formatShortcut } from "../lib/platform";
-import { basename } from "../lib/utils";
-import { useDocumentStore } from "../stores/documentStore";
+import {
+  selectActiveDocument,
+  useDocumentStore,
+} from "../stores/documentStore";
 import {
   selectHasWorkspace,
   useProjectStore,
@@ -33,7 +36,7 @@ const VIEW_MODES: { mode: ViewMode; label: string; icon: typeof Pencil }[] = [
 ];
 
 export function EditorPane({ actions }: EditorPaneProps) {
-  const doc = useDocumentStore((state) => state.doc);
+  const doc = useDocumentStore(selectActiveDocument);
   const updateContent = useDocumentStore((state) => state.updateContent);
   const hasWorkspace = useProjectStore(selectHasWorkspace);
   const projectName = useProjectStore((state) => state.project.name);
@@ -45,6 +48,8 @@ export function EditorPane({ actions }: EditorPaneProps) {
 
   return (
     <main className="editor" aria-label="Editor">
+      <DocumentTabs actions={actions} />
+
       <header className="editor__header">
         {sidebarCollapsed ? (
           <button
@@ -65,7 +70,7 @@ export function EditorPane({ actions }: EditorPaneProps) {
           </span>
           {doc ? (
             <span className="editor__meta" title={doc.path ?? undefined}>
-              {doc.path ? basename(doc.path) : "Not saved yet"}
+              {doc.path ?? "Not saved yet"}
             </span>
           ) : (
             <span className="editor__meta">
@@ -123,13 +128,13 @@ export function EditorPane({ actions }: EditorPaneProps) {
           >
             {viewMode !== "preview" ? (
               <textarea
-                key={doc.path ?? doc.name}
+                key={doc.id}
                 className="editor__text"
                 aria-label={`Content of ${doc.name}`}
                 value={doc.content}
                 spellCheck={doc.kind === "markdown" || doc.kind === "text"}
                 autoFocus
-                onChange={(event) => updateContent(event.target.value)}
+                onChange={(event) => updateContent(doc.id, event.target.value)}
               />
             ) : null}
 
@@ -234,6 +239,12 @@ export function EditorPane({ actions }: EditorPaneProps) {
                 </span>
                 <span>
                   <kbd>{formatShortcut("S")}</kbd> save file
+                </span>
+                <span>
+                  <kbd>{formatShortcut("W")}</kbd> close tab
+                </span>
+                <span>
+                  <kbd>{formatShortcut("Tab")}</kbd> switch tabs
                 </span>
               </div>
             </div>

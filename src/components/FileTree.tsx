@@ -9,7 +9,7 @@ import {
 import type { PathInfo } from "../lib/fs";
 import { errorMessage, fileSystem } from "../lib/fs";
 import { basename } from "../lib/utils";
-import { useDocumentStore } from "../stores/documentStore";
+import { useDocumentStore, selectActivePath } from "../stores/documentStore";
 import { useProjectStore } from "../stores/projectStore";
 import { useToastStore } from "../stores/toastStore";
 import type { ProjectRoot } from "../types";
@@ -47,7 +47,7 @@ function TreeNode({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const push = useToastStore((state) => state.push);
-  const activePath = useDocumentStore((state) => state.doc?.path ?? null);
+  const activePath = useDocumentStore(selectActivePath);
 
   useEffect(() => {
     if (!entry.isDir || !expanded) return;
