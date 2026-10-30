@@ -12,12 +12,13 @@
     "tauri:build": "tauri build"
   },
   "dependencies": {
-    "@likec4/diagram": "1.60.0",
+    "@likec4/core": "1.60.0",
     "@likec4/language-services": "1.60.0",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.8.4",
     "@tauri-apps/plugin-opener": "^2",
     "@types/jest": "^30.0.0",
+    "likec4": "1.60.0",
     "lucide-react": "^1.63.0",
     "mermaid": "12.2.0",
     "react": "19.3.1",

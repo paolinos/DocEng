@@ -10,6 +10,7 @@ import {
   Save,
 } from "lucide-react";
 import type { AppActions } from "../hooks/useAppActions";
+import { C4Preview } from "./C4Preview";
 import { DocumentTabs } from "./DocumentTabs";
 import { ImagePreview } from "./ImagePreview";
 import { MarkdownPreview } from "./MarkdownPreview";
@@ -156,6 +157,13 @@ export function EditorPane({ actions }: EditorPaneProps) {
                   <div className="editor__preview" aria-label="Preview">
                     {doc.kind === "markdown" ? (
                       <MarkdownPreview source={doc.content} />
+                    ) : doc.kind === "likec4" ? (
+                      <C4Preview
+                        key={doc.id}
+                        source={doc.content}
+                        path={doc.path}
+                        name={doc.name}
+                      />
                     ) : (
                       <pre className="editor__plain-preview">
                         {doc.content}

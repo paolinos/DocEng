@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { C4Diagram } from "./C4Diagram";
 import { MermaidDiagram } from "./MermaidDiagram";
 
 interface MarkdownPreviewProps {
@@ -146,6 +147,14 @@ function renderBlocks(source: string): ReactNode[] {
           <MermaidDiagram
             key={`mermaid-${blocks.length}`}
             source={code.join("\n")}
+          />,
+        );
+      } else if (language === "likec4" || language === "c4") {
+        blocks.push(
+          <C4Diagram
+            key={`c4-${blocks.length}`}
+            source={code.join("\n")}
+            compact
           />,
         );
       } else {

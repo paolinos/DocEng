@@ -7,7 +7,7 @@ const host = process.env.TAURI_DEV_HOST;
 // https://vite.dev/config/
 export default defineConfig(() => ({
   plugins: [react()],
-  resolve: { dedupe: ["react", "react-dom"] },
+  resolve: { dedupe: ["react", "react-dom", "@likec4/core"] },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //

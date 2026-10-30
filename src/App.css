@@ -1321,6 +1321,241 @@ body.is-resizing .resize-handle::after {
   color: inherit;
 }
 
+.c4-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 100%;
+}
+
+.c4-preview__header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.c4-preview__filename {
+  flex-shrink: 0;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.c4-preview__path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.c4-diagram.c4-preview__diagram {
+  flex: 1;
+  min-height: 460px;
+}
+
+.c4-preview__empty {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.c4-preview__empty p {
+  margin: 0;
+}
+
+.c4-preview__empty code {
+  padding: 1px 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    "SF Mono",
+    Menlo,
+    Consolas,
+    "Liberation Mono",
+    monospace;
+  font-size: 0.9em;
+}
+
+.c4-preview__example {
+  max-width: 440px;
+  margin: 6px auto 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-muted);
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    "SF Mono",
+    Menlo,
+    Consolas,
+    "Liberation Mono",
+    monospace;
+  font-size: 11.5px;
+  line-height: 1.6;
+  text-align: left;
+}
+
+.c4-diagram {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+}
+
+.c4-diagram--compact {
+  height: 420px;
+  margin: 0.9em 0;
+}
+
+.c4-diagram__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-raised);
+}
+
+.c4-diagram__view-selector {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.c4-diagram__view-selector select {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 11px;
+}
+
+.c4-diagram__viewport {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.c4-diagram__view {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+}
+
+.c4-diagram__loading,
+.c4-diagram__empty {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-height: 140px;
+  padding: 16px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.c4-diagram__diagnostics {
+  margin: 0;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-raised);
+  color: var(--danger);
+  font-size: 11.5px;
+  line-height: 1.5;
+  list-style: none;
+}
+
+.c4-diagram__diagnostic-location {
+  color: var(--text-muted);
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    "SF Mono",
+    Menlo,
+    Consolas,
+    "Liberation Mono",
+    monospace;
+}
+
+.c4-diagram__error {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+}
+
+.c4-diagram__error .c4-diagram__diagnostics {
+  padding: 0;
+  border-bottom: 0;
+  background: transparent;
+}
+
+.c4-diagram__error-message {
+  margin: 0;
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.c4-diagram__error-message code {
+  color: inherit;
+}
+
+.c4-diagram__source {
+  margin: 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-muted);
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    "SF Mono",
+    Menlo,
+    Consolas,
+    "Liberation Mono",
+    monospace;
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+
+.c4-diagram__source code {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
 .markdown-preview blockquote {
   margin: 0.8em 0;
   padding: 2px 0 2px 13px;
