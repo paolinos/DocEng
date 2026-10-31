@@ -27,6 +27,8 @@ interface ProjectState {
   setName: (name: string) => void;
   setRoots: (roots: ProjectRoot[]) => void;
   addRoot: (root: ProjectRoot) => void;
+  renameRootPath: (oldPath: string, newPath: string) => void;
+  removeRootsUnderPath: (path: string) => void;
   replaceProject: (project: Project, projectPath: string | null) => void;
   restoreProject: (project: Project, metadata: ProjectRestoreMetadata) => void;
   setProjectFile: (path: string | null, modifiedMs?: number | null) => void;
@@ -65,6 +67,38 @@ export const useProjectStore = create<ProjectState>((set) => ({
   addRoot: (root) =>
     set((state) => ({
       project: { ...state.project, roots: [...state.project.roots, root] },
+      dirty: true,
+      explorerRevision: state.explorerRevision + 1,
+    })),
+
+  renameRootPath: (oldPath, newPath) =>
+    set((state) => ({
+      project: {
+        ...state.project,
+        roots: state.project.roots.map((root) =>
+          root.path === oldPath
+            ? { ...root, path: newPath }
+            : root.path.startsWith(`${oldPath}/`) ||
+                root.path.startsWith(`${oldPath}\\`)
+              ? { ...root, path: `${newPath}${root.path.slice(oldPath.length)}` }
+              : root,
+        ),
+      },
+      dirty: true,
+      explorerRevision: state.explorerRevision + 1,
+    })),
+
+  removeRootsUnderPath: (path) =>
+    set((state) => ({
+      project: {
+        ...state.project,
+        roots: state.project.roots.filter(
+          (root) =>
+            root.path !== path &&
+            !root.path.startsWith(`${path}/`) &&
+            !root.path.startsWith(`${path}\\`),
+        ),
+      },
       dirty: true,
       explorerRevision: state.explorerRevision + 1,
     })),

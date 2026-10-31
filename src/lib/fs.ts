@@ -87,6 +87,14 @@ export const fileSystem = {
     return invoke<PathInfo>("stat_path", { path });
   },
 
+  renameEntry(path: string, newName: string): Promise<string> {
+    return invoke<string>("rename_entry", { path, newName });
+  },
+
+  trashEntry(path: string): Promise<void> {
+    return invoke<void>("trash_entry", { path });
+  },
+
   readTextFile(path: string): Promise<TextFileInfo> {
     return invoke<TextFileInfo>("read_text_file", { path });
   },

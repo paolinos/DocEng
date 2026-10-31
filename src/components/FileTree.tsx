@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { MouseEvent } from "react";
 import {
   ChevronRight,
   File,
@@ -59,6 +60,8 @@ interface FileTreeProps {
   roots: ProjectRoot[];
   onOpenFile: (path: string) => void;
   onRemoveRoot: (rootId: string) => void;
+  onRenamePath: (path: string, newName: string, isFolder: boolean) => Promise<void>;
+  onTrashPath: (path: string, isFolder: boolean) => Promise<void>;
 }
 
 interface RemoveConfirmation {
@@ -75,6 +78,7 @@ interface TreeNodeProps {
   rootId?: string;
   onOpenFile: (path: string) => void;
   onRequestRemove?: (root: ProjectRoot) => void;
+  onContextMenu: (event: MouseEvent<HTMLButtonElement>, entry: TreeEntry, root?: ProjectRoot) => void;
 }
 
 function TreeNode({
@@ -85,6 +89,7 @@ function TreeNode({
   rootId,
   onOpenFile,
   onRequestRemove,
+  onContextMenu,
 }: TreeNodeProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [entries, setEntries] = useState<PathInfo[] | null>(null);
@@ -172,6 +177,7 @@ function TreeNode({
           style={{ paddingLeft: `${8 + depth * 14}px` }}
           title={entry.path}
           onClick={activate}
+          onContextMenu={(event) => onContextMenu(event, entry, root)}
         >
           <span className="tree__chevron" aria-hidden="true">
             {entry.isDir ? (
@@ -239,6 +245,7 @@ function TreeNode({
               revision={revision}
               onOpenFile={onOpenFile}
               onRequestRemove={onRequestRemove}
+              onContextMenu={onContextMenu}
             />
           ))}
         </ul>
@@ -247,9 +254,19 @@ function TreeNode({
   );
 }
 
-export function FileTree({ roots, onOpenFile, onRemoveRoot }: FileTreeProps) {
+export function FileTree({
+  roots,
+  onOpenFile,
+  onRemoveRoot,
+  onRenamePath,
+  onTrashPath,
+}: FileTreeProps) {
   const revision = useProjectStore((state) => state.explorerRevision);
   const [confirmation, setConfirmation] = useState<RemoveConfirmation | null>(null);
+  const [menu, setMenu] = useState<{ entry: TreeEntry; root?: ProjectRoot; x: number; y: number } | null>(null);
+  const [renameTarget, setRenameTarget] = useState<TreeEntry | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<TreeEntry | null>(null);
   const documents = useDocumentStore((state) => state.documents);
 
   const isWithinRoot = (path: string, rootPath: string) =>
@@ -290,6 +307,29 @@ export function FileTree({ roots, onOpenFile, onRemoveRoot }: FileTreeProps) {
     onRemoveRoot(rootId);
   }
 
+  function openContextMenu(
+    event: MouseEvent<HTMLButtonElement>,
+    entry: TreeEntry,
+    root?: ProjectRoot,
+  ) {
+    event.preventDefault();
+    setMenu({ entry, root, x: event.clientX, y: event.clientY });
+  }
+
+  async function confirmRename() {
+    if (!renameTarget) return;
+    const entry = renameTarget;
+    setRenameTarget(null);
+    await onRenamePath(entry.path, renameValue, entry.isDir);
+  }
+
+  async function confirmTrash() {
+    if (!deleteTarget) return;
+    const entry = deleteTarget;
+    setDeleteTarget(null);
+    await onTrashPath(entry.path, entry.isDir);
+  }
+
   return (
     <>
       <ul className="tree__list" role="tree" aria-label="Project files">
@@ -307,9 +347,101 @@ export function FileTree({ roots, onOpenFile, onRemoveRoot }: FileTreeProps) {
           rootId={root.id}
           onOpenFile={onOpenFile}
           onRequestRemove={requestRemove}
+          onContextMenu={openContextMenu}
         />
         ))}
       </ul>
+      {menu ? (
+        <>
+          <button
+            type="button"
+            className="tree-menu-dismiss"
+            aria-label="Close file actions"
+            onClick={() => setMenu(null)}
+          />
+          <div
+            className="tree-context-menu"
+            style={{ left: menu.x, top: menu.y }}
+            role="menu"
+            aria-label={`Actions for ${menu.entry.name}`}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setRenameValue(menu.entry.name);
+                setRenameTarget(menu.entry);
+                setMenu(null);
+              }}
+            >
+              Rename
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="tree-context-menu__danger"
+              onClick={() => {
+                setDeleteTarget(menu.entry);
+                setMenu(null);
+              }}
+            >
+              Move to Trash…
+            </button>
+            {menu.root ? (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  requestRemove(menu.root!);
+                  setMenu(null);
+                }}
+              >
+                Remove from project…
+              </button>
+            ) : null}
+          </div>
+        </>
+      ) : null}
+      {renameTarget ? (
+        <div className="confirm-backdrop">
+          <section className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="rename-title">
+            <h2 id="rename-title">Rename item</h2>
+            <label className="tree-rename-label">
+              Name
+              <input
+                autoFocus
+                value={renameValue}
+                onChange={(event) => setRenameValue(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") void confirmRename();
+                  if (event.key === "Escape") setRenameTarget(null);
+                }}
+              />
+            </label>
+            <div className="confirm-dialog__actions">
+              <button type="button" onClick={() => setRenameTarget(null)}>Cancel</button>
+              <button type="button" onClick={() => void confirmRename()}>Rename</button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+      {deleteTarget ? (
+        <div className="confirm-backdrop">
+          <section className="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="trash-title">
+            <h2 id="trash-title">Move to Trash?</h2>
+            <p>
+              Move <strong>{deleteTarget.name}</strong>{deleteTarget.isDir ? " and its contents" : ""} to the system Trash?
+              {documents.some((document) => document.path === deleteTarget.path || (deleteTarget.isDir && document.path !== null && isWithinRoot(document.path, deleteTarget.path)))
+                ? " Open tabs will remain open as detached buffers."
+                : ""}
+            </p>
+            <div className="confirm-dialog__actions">
+              <button type="button" onClick={() => setDeleteTarget(null)}>Cancel</button>
+              <button type="button" className="confirm-dialog__remove" onClick={() => void confirmTrash()}>Move to Trash</button>
+            </div>
+          </section>
+        </div>
+      ) : null}
       {confirmation ? (
         <div className="confirm-backdrop">
           <section

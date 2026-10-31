@@ -38,6 +38,8 @@ export interface AppActions {
   addFile: () => Promise<void>;
   addFolder: () => Promise<void>;
   removeRoot: (rootId: string) => Promise<void>;
+  renamePath: (path: string, newName: string, isFolder: boolean) => Promise<void>;
+  trashPath: (path: string, isFolder: boolean) => Promise<void>;
   openFile: (path: string) => Promise<void>;
   saveFile: () => Promise<void>;
   closeFile: (id?: string) => void;
@@ -566,6 +568,39 @@ export function useAppActions(): AppActions {
 
           // Selecting a single file is an explicit request to edit it.
           await actionsOpenFile(roots[roots.length - 1].path);
+        } catch (error) {
+          reportError(error);
+        }
+      },
+
+      renamePath: async (path: string, newName: string, isFolder: boolean) => {
+        const oldName = basename(path);
+        try {
+          if (!newName.trim() || newName === "." || newName === ".." || /[\\/]/.test(newName)) {
+            push("Enter a valid name without a path separator.", "warning");
+            return;
+          }
+          const result = await fileSystem.renameEntry(path, newName);
+          useDocumentStore
+            .getState()
+            .renameDocumentsUnderPath(path, isFolder, result);
+          useProjectStore.getState().renameRootPath(path, result);
+          useProjectStore.getState().bumpExplorerRevision();
+          push(`Renamed "${oldName}" to "${basename(result)}".`, "success");
+        } catch (error) {
+          reportError(error);
+        }
+      },
+
+      trashPath: async (path: string, isFolder: boolean) => {
+        try {
+          await fileSystem.trashEntry(path);
+          useDocumentStore
+            .getState()
+            .detachDocumentsUnderPath(path, isFolder);
+          useProjectStore.getState().removeRootsUnderPath(path);
+          useProjectStore.getState().bumpExplorerRevision();
+          push(`Moved "${basename(path)}" to Trash.`, "success");
         } catch (error) {
           reportError(error);
         }

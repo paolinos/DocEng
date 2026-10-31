@@ -94,6 +94,108 @@ impl PathPolicy {
         }
     }
 
+    /// Renames an authorized entry inside its current directory and updates any
+    /// affected project roots while holding the authorization lock.
+    pub fn rename_entry(&self, path: &Path, new_name: &str) -> AppResult<PathBuf> {
+        use std::path::Component;
+
+        let mut components = Path::new(new_name).components();
+        if new_name.trim().is_empty()
+            || !matches!(components.next(), Some(Component::Normal(_)))
+            || components.next().is_some()
+        {
+            return Err(AppError::new("invalid_input", "Enter a valid name without a path."));
+        }
+
+        let source = self.authorized_entry(path)?;
+        let parent = source.parent().ok_or_else(|| {
+            AppError::new("invalid_input", "Source has no parent directory.")
+                .with_path(source.display().to_string())
+        })?;
+        let destination = parent.join(new_name);
+        if destination == source {
+            return Ok(source);
+        }
+        if std::fs::symlink_metadata(&destination).is_ok() {
+            return Err(AppError::new("already_exists", "An item with that name already exists.")
+                .with_path(destination.display().to_string()));
+        }
+
+        std::fs::rename(&source, &destination)
+            .map_err(|error| AppError::io(&source, error))?;
+
+        let mut roots = self
+            .roots
+            .write()
+            .map_err(|_| AppError::internal("Path policy lock is poisoned."))?;
+        for root in roots.iter_mut() {
+            if let Ok(relative) = root.strip_prefix(&source) {
+                *root = destination.join(relative);
+            }
+        }
+
+        Ok(destination)
+    }
+
+    /// Moves an authorized entry to the operating system trash and removes
+    /// project roots that point into the trashed entry.
+    pub fn trash_entry(&self, path: &Path) -> AppResult<()> {
+        let canonical = self.authorized_entry(path)?;
+        trash::delete(&canonical).map_err(|error| {
+            AppError::new("trash_failed", error.to_string())
+                .with_path(canonical.display().to_string())
+        })?;
+
+        let mut roots = self
+            .roots
+            .write()
+            .map_err(|_| AppError::internal("Path policy lock is poisoned."))?;
+        roots.retain(|root| !root.starts_with(&canonical));
+        Ok(())
+    }
+
+    /// Canonicalizes the parent without following the entry itself and verifies
+    /// that it remains within one of the configured project roots.
+    fn authorized_entry(&self, path: &Path) -> AppResult<PathBuf> {
+        if !path.is_absolute() {
+            return Err(AppError::new("invalid_input", "Path must be absolute.")
+                .with_path(path.display().to_string()));
+        }
+
+        let file_name = path.file_name().ok_or_else(|| {
+            AppError::new("invalid_input", "Path has no file name.")
+                .with_path(path.display().to_string())
+        })?;
+        let parent = path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .ok_or_else(|| {
+                AppError::new("invalid_input", "Path has no parent directory.")
+                    .with_path(path.display().to_string())
+            })?
+            .canonicalize()
+            .map_err(|error| AppError::io(path, error))?;
+        let canonical = parent.join(file_name);
+        if std::fs::symlink_metadata(&canonical).is_err() {
+            return Err(AppError::new("not_found", "Path does not exist.")
+                .with_path(canonical.display().to_string()));
+        }
+
+        let roots = self
+            .roots
+            .read()
+            .map_err(|_| AppError::internal("Path policy lock is poisoned."))?;
+        if roots.iter().any(|root| canonical.starts_with(root)) {
+            Ok(canonical)
+        } else {
+            Err(AppError::new(
+                "not_allowed",
+                "Path is outside the folders and files of the open project.",
+            )
+            .with_path(canonical.display().to_string()))
+        }
+    }
+
     /// Authorizes an exact save target that may not exist yet.
     ///
     /// If the target is already inside a project root, it is covered by the

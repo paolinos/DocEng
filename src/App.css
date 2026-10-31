@@ -567,6 +567,66 @@ body.is-resizing .sidebar {
   color: var(--text);
 }
 
+.tree-menu-dismiss {
+  position: fixed;
+  inset: 0;
+  z-index: 180;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.tree-context-menu {
+  position: fixed;
+  z-index: 181;
+  display: flex;
+  flex-direction: column;
+  min-width: 176px;
+  padding: 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  box-shadow: var(--shadow);
+}
+
+.tree-context-menu button {
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tree-context-menu button:hover,
+.tree-context-menu button:focus-visible {
+  background: var(--surface-hover);
+  outline: none;
+}
+
+.tree-context-menu .tree-context-menu__danger {
+  color: var(--danger);
+}
+
+.tree-rename-label {
+  display: grid;
+  gap: 6px;
+  margin-top: 16px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.tree-rename-label input {
+  padding: 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+}
+
 .tree__chevron {
   display: inline-grid;
   place-items: center;

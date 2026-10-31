@@ -118,6 +118,22 @@ pub fn stat_path(path: String, policy: State<'_, PathPolicy>) -> AppResult<PathI
 }
 
 #[tauri::command]
+pub fn rename_entry(
+    path: String,
+    new_name: String,
+    policy: State<'_, PathPolicy>,
+) -> AppResult<String> {
+    policy
+        .rename_entry(Path::new(&path), &new_name)
+        .map(|path| path.to_string_lossy().into_owned())
+}
+
+#[tauri::command]
+pub fn trash_entry(path: String, policy: State<'_, PathPolicy>) -> AppResult<()> {
+    policy.trash_entry(Path::new(&path))
+}
+
+#[tauri::command]
 pub fn canonicalize_path(path: String, policy: State<'_, PathPolicy>) -> AppResult<String> {
     let canonical = policy.allow(Path::new(&path))?;
     Ok(canonical.to_string_lossy().into_owned())

@@ -5,7 +5,11 @@ import type {
   OpenDocument,
   OpenDocumentInput,
 } from "../types";
-import { isDocumentDirty } from "../types";
+import {
+  documentKindForPath,
+  documentLanguageForPath,
+  isDocumentDirty,
+} from "../types";
 import { createId } from "../lib/utils";
 
 export interface DocumentSaveMetadata {
@@ -34,6 +38,8 @@ interface DocumentState {
     isFolder: boolean,
     remainingRoots: Array<{ path: string; type: "file" | "folder" }>,
   ) => void;
+  renameDocumentsUnderPath: (path: string, isFolder: boolean, newPath: string) => void;
+  detachDocumentsUnderPath: (path: string, isFolder: boolean) => void;
   markSaved: (metadata: DocumentSaveMetadata) => void;
   closeDocument: (id: string) => void;
   closeAllDocuments: () => void;
@@ -126,6 +132,38 @@ export const useDocumentStore = create<DocumentState>((set) => ({
           detached: true,
         };
       }),
+    })),
+
+  renameDocumentsUnderPath: (path, isFolder, newPath) =>
+    set((state) => ({
+      documents: state.documents.map((doc) => {
+        if (
+          doc.path === null ||
+          !(doc.path === path || (isFolder && isWithinRoot(doc.path, path)))
+        ) {
+          return doc;
+        }
+        const suffix = doc.path.slice(path.length);
+        const renamedPath = `${newPath}${suffix}`;
+        const kind = documentKindForPath(renamedPath);
+        return {
+          ...doc,
+          path: renamedPath,
+          name: renamedPath.split(/[\\/]/).pop() ?? doc.name,
+          kind,
+          language: documentLanguageForPath(renamedPath, kind),
+        };
+      }),
+    })),
+
+  detachDocumentsUnderPath: (path, isFolder) =>
+    set((state) => ({
+      documents: state.documents.map((doc) =>
+        doc.path !== null &&
+        (doc.path === path || (isFolder && isWithinRoot(doc.path, path)))
+          ? { ...doc, path: null, modifiedMs: null, detached: true }
+          : doc,
+      ),
     })),
 
   markSaved: ({
