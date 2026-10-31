@@ -31,6 +31,7 @@ export interface SessionDocumentSnapshot {
   savedContent: string;
   size: number;
   modifiedMs: number | null;
+  detached?: boolean;
 }
 
 export interface SessionSnapshot {
@@ -54,6 +55,7 @@ export function documentToSnapshot(doc: OpenDocument): SessionDocumentSnapshot {
     savedContent: doc.savedContent,
     size: doc.size,
     modifiedMs: doc.modifiedMs,
+    ...(doc.detached ? { detached: true } : {}),
   };
 }
 
@@ -138,6 +140,9 @@ function parseDocument(value: unknown): SessionDocumentSnapshot | null {
     return null;
   }
   if (!isNumberOrNull(value.modifiedMs)) return null;
+  if (value.detached !== undefined && typeof value.detached !== "boolean") {
+    return null;
+  }
 
   return {
     id: value.id,
@@ -148,6 +153,7 @@ function parseDocument(value: unknown): SessionDocumentSnapshot | null {
     savedContent: value.savedContent,
     size: value.size,
     modifiedMs: value.modifiedMs,
+    detached: value.detached,
   };
 }
 

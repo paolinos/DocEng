@@ -42,6 +42,7 @@ export interface OpenDocument {
   savedContent: string;
   size: number;
   modifiedMs: number | null;
+  detached?: boolean;
 }
 
 export type OpenDocumentInput = Omit<OpenDocument, "id">;
@@ -296,5 +297,7 @@ export function isEditableKind(kind: DocumentKind): boolean {
 export function isDocumentDirty(doc: OpenDocument | null): boolean {
   if (doc === null || doc.kind === "image") return false;
 
-  return doc.path === null || doc.content !== doc.savedContent;
+  return (
+    (doc.path === null && !doc.detached) || doc.content !== doc.savedContent
+  );
 }

@@ -365,4 +365,38 @@ describe("isDocumentDirty", () => {
     };
     expect(isDocumentDirty(doc)).toBe(true);
   });
+
+  it("treats a clean detached document as clean", () => {
+    const doc = {
+      id: "5",
+      path: null,
+      name: "Detached.md",
+      kind: "markdown" as const,
+      language: null,
+      image: null,
+      content: "same",
+      savedContent: "same",
+      size: 4,
+      modifiedMs: null,
+      detached: true,
+    };
+    expect(isDocumentDirty(doc)).toBe(false);
+  });
+
+  it("keeps detached documents dirty when their buffer has unsaved changes", () => {
+    const doc = {
+      id: "6",
+      path: null,
+      name: "Detached.md",
+      kind: "markdown" as const,
+      language: null,
+      image: null,
+      content: "edited",
+      savedContent: "original",
+      size: 8,
+      modifiedMs: null,
+      detached: true,
+    };
+    expect(isDocumentDirty(doc)).toBe(true);
+  });
 });

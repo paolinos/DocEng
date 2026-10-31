@@ -29,6 +29,11 @@ interface DocumentState {
   cycleDocument: (direction: 1 | -1) => void;
   updateContent: (id: string, content: string) => void;
   replaceDocument: (id: string, doc: OpenDocumentInput) => void;
+  detachDocumentsUnderRoot: (
+    path: string,
+    isFolder: boolean,
+    remainingRoots: Array<{ path: string; type: "file" | "folder" }>,
+  ) => void;
   markSaved: (metadata: DocumentSaveMetadata) => void;
   closeDocument: (id: string) => void;
   closeAllDocuments: () => void;
@@ -91,6 +96,38 @@ export const useDocumentStore = create<DocumentState>((set) => ({
       ),
     })),
 
+  detachDocumentsUnderRoot: (path, isFolder, remainingRoots) =>
+    set((state) => ({
+      documents: state.documents.map((doc) => {
+        if (
+          doc.path === null ||
+          !(doc.path === path || (isFolder && isWithinRoot(doc.path, path)))
+        ) {
+          return doc;
+        }
+
+        // Overlapping project roots may continue to authorize this path. Keep
+        // the tab attached when another remaining root still covers it.
+        if (
+          remainingRoots.some(
+            (root) =>
+              doc.path === root.path ||
+              (root.type === "folder" && isWithinRoot(doc.path!, root.path)),
+          )
+        ) {
+          return doc;
+        }
+
+        return {
+          ...doc,
+          path: null,
+          name: doc.name,
+          modifiedMs: null,
+          detached: true,
+        };
+      }),
+    })),
+
   markSaved: ({
     id,
     path,
@@ -115,6 +152,7 @@ export const useDocumentStore = create<DocumentState>((set) => ({
               savedContent: content,
               size,
               modifiedMs,
+              detached: false,
             }
           : doc,
       ),
@@ -154,4 +192,8 @@ export function findDocumentByPath(
   path: string,
 ): OpenDocument | undefined {
   return state.documents.find((doc) => doc.path === path);
+}
+
+function isWithinRoot(path: string, root: string): boolean {
+  return path.startsWith(`${root}/`) || path.startsWith(`${root}\\`);
 }

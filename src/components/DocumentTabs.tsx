@@ -119,6 +119,15 @@ export function DocumentTabs({ actions }: DocumentTabsProps) {
                 className={`editor-tab__icon editor-tab__icon--${iconClassForKind(doc.kind)}`}
               />
               <span className="editor-tab__label">{doc.name}</span>
+              {doc.detached ? (
+                <span
+                  className="editor-tab__detached"
+                  title="Detached from removed project root. Use Save As to save it to an authorized path."
+                  aria-label="Detached document"
+                >
+                  detached
+                </span>
+              ) : null}
               {dirty ? (
                 <span
                   className="editor-tab__dirty"

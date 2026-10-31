@@ -9,7 +9,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Manager, State};
 
 const SNAPSHOT_VERSION: i64 = 1;
-const SCHEMA_VERSION: i64 = 1;
+const SCHEMA_VERSION: i64 = 2;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -51,6 +51,8 @@ pub struct SessionDocument {
     pub saved_content: String,
     pub size: i64,
     pub modified_ms: Option<i64>,
+    #[serde(default)]
+    pub detached: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -236,6 +238,15 @@ fn migrate(connection: &Connection) -> AppResult<()> {
 
     if version < SCHEMA_VERSION {
         connection
+            .execute(
+                "ALTER TABLE documents ADD COLUMN detached INTEGER NOT NULL DEFAULT 0",
+                [],
+            )
+            .map_err(db_error)?;
+    }
+
+    if version < SCHEMA_VERSION {
+        connection
             .pragma_update(None, "user_version", SCHEMA_VERSION)
             .map_err(db_error)?;
     }
@@ -317,8 +328,8 @@ fn save_snapshot(connection: &mut Connection, snapshot: &SessionSnapshot) -> App
             .prepare(
                 "INSERT INTO documents (
                     id, position, path, name, kind, content,
-                    saved_content, size, modified_ms
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                    saved_content, size, modified_ms, detached
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             )
             .map_err(db_error)?;
 
@@ -334,6 +345,7 @@ fn save_snapshot(connection: &mut Connection, snapshot: &SessionSnapshot) -> App
                     document.saved_content,
                     document.size,
                     document.modified_ms,
+                    i64::from(u8::from(document.detached)),
                 ])
                 .map_err(db_error)?;
         }
@@ -423,7 +435,7 @@ fn load_snapshot(connection: &Connection) -> AppResult<Option<SessionSnapshot>> 
         let mut statement = connection
             .prepare(
                 "SELECT id, path, name, kind, content, saved_content,
-                        size, modified_ms
+                        size, modified_ms, detached
                  FROM documents ORDER BY position ASC",
             )
             .map_err(db_error)?;
@@ -439,6 +451,7 @@ fn load_snapshot(connection: &Connection) -> AppResult<Option<SessionSnapshot>> 
                     saved_content: row.get(5)?,
                     size: row.get(6)?,
                     modified_ms: row.get(7)?,
+                    detached: row.get::<_, i64>(8)? != 0,
                 })
             })
             .map_err(db_error)?;
@@ -525,6 +538,7 @@ mod tests {
                     saved_content: "# Read me\n".into(),
                     size: 10,
                     modified_ms: Some(1_700_000_000_100),
+                    detached: false,
                 },
                 SessionDocument {
                     id: "doc-2".into(),
@@ -535,6 +549,7 @@ mod tests {
                     saved_content: "".into(),
                     size: 0,
                     modified_ms: None,
+                    detached: true,
                 },
             ],
         }
@@ -565,6 +580,7 @@ mod tests {
         assert_eq!(loaded.documents[0].content, "# Read me\n");
         assert_eq!(loaded.documents[1].path, None);
         assert_eq!(loaded.documents[1].saved_content, "");
+        assert!(loaded.documents[1].detached);
     }
 
     #[test]

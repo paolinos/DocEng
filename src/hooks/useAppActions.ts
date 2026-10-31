@@ -5,20 +5,15 @@ import {
   save as saveDialog,
 } from "@tauri-apps/plugin-dialog";
 import type {
-  DocumentKind,
   Project,
   ProjectRoot,
   ProjectRootType,
   ViewMode,
 } from "../types";
 import {
-  CODE_FILE_EXTENSIONS,
   documentKindForPath,
   documentLanguageForPath,
-  isCodeFile,
   isDocumentDirty,
-  MARKDOWN_FILE_EXTENSIONS,
-  TEXT_FILE_EXTENSIONS,
 } from "../types";
 import { errorMessage, fileSystem, isAppError } from "../lib/fs";
 import { parseProjectFile, serializeProject } from "../lib/projectFile";
@@ -42,6 +37,7 @@ export interface AppActions {
   newFile: () => void;
   addFile: () => Promise<void>;
   addFolder: () => Promise<void>;
+  removeRoot: (rootId: string) => Promise<void>;
   openFile: (path: string) => Promise<void>;
   saveFile: () => Promise<void>;
   closeFile: (id?: string) => void;
@@ -61,9 +57,9 @@ function nextUntitledName(): string {
     useDocumentStore.getState().documents.map((doc) => doc.name),
   );
 
-  let name = `Untitled-${untitledSequence++}.md`;
+  let name = "Untitle";
   while (existing.has(name)) {
-    name = `Untitled-${untitledSequence++}.md`;
+    name = `Untitle-${untitledSequence++}`;
   }
 
   return name;
@@ -94,17 +90,6 @@ async function authorizeRoots(roots: ProjectRoot[]): Promise<ProjectRoot[]> {
     ...root,
     path: canonical[index] ?? root.path,
   }));
-}
-
-function hasFileExtension(path: string): boolean {
-  const name = basename(path);
-  const dot = name.lastIndexOf(".");
-  return dot > 0 && dot < name.length - 1;
-}
-
-function ensureFileExtension(path: string, kind: DocumentKind): string {
-  if (hasFileExtension(path) || isCodeFile(path)) return path;
-  return `${path}.${kind === "markdown" ? "md" : "txt"}`;
 }
 
 function ensureProjectExtension(path: string): string {
@@ -586,6 +571,44 @@ export function useAppActions(): AppActions {
         }
       },
 
+      removeRoot: async (rootId: string) => {
+        const projectState = useProjectStore.getState();
+        const root = projectState.project.roots.find((item) => item.id === rootId);
+        if (!root) return;
+
+        const remainingProjectRoots = projectState.project.roots.filter(
+          (item) => item.id !== rootId,
+        );
+        try {
+          const remainingRoots = remainingProjectRoots;
+          // Update the OS-side allowlist only after all remaining paths have
+          // been validated. A failed authorization leaves the project intact.
+          const roots = await authorizeRoots(remainingRoots);
+
+          // Detached documents have no authorized old path, so Save uses the
+          // Save As flow and can explicitly authorize a new destination.
+          // Preserve the open buffers, but detach them from the removed path so
+          // they cannot accidentally write back to a root no longer authorized.
+          useDocumentStore
+            .getState()
+            .detachDocumentsUnderRoot(
+              root.path,
+              root.type === "folder",
+              roots.map((r) => ({ path: r.path, type: r.type })),
+            );
+
+          // Confirmed removal only changes the workspace roots and the native
+          // filesystem allowlist. It does not delete anything from disk.
+          useProjectStore.getState().setRoots(roots);
+          push(
+            `Removed "${basename(root.path)}" from the project. It remains on disk.`,
+            "success",
+          );
+        } catch (error) {
+          reportError(error);
+        }
+      },
+
       openFile: async (path: string) => {
         await actionsOpenFile(path);
       },
@@ -616,20 +639,11 @@ export function useAppActions(): AppActions {
             const selected = await saveDialog({
               title: "Save File",
               defaultPath: await defaultSavePath(name),
-              filters: [
-                {
-                  name: "Markdown",
-                  extensions: [...MARKDOWN_FILE_EXTENSIONS],
-                },
-                { name: "Text", extensions: [...TEXT_FILE_EXTENSIONS] },
-                { name: "Code", extensions: [...CODE_FILE_EXTENSIONS] },
-                { name: "All files", extensions: ["*"] },
-              ],
             });
 
             if (selected === null) return;
 
-            const target = ensureFileExtension(selected, kind);
+            const target = selected;
             const authorization = await fileSystem.authorizeNewFile(target);
 
             const alreadyOpen = findDocumentByPath(

@@ -112,7 +112,26 @@ async function performRestore(): Promise<void> {
 
   for (const saved of snapshot.documents) {
     if (saved.path === null) {
-      documents.push({ ...saved, language: null, image: null });
+      documents.push({
+        ...saved,
+        language: saved.detached
+          ? documentLanguageForPath(saved.name, saved.kind)
+          : null,
+        image: null,
+      });
+      continue;
+    }
+
+    // Removed project roots leave detached tabs as recoverable in-memory
+    // buffers. Do not re-authorize or reload their old paths during restore.
+    if (saved.detached) {
+      documents.push({
+        ...saved,
+        path: null,
+        language: documentLanguageForPath(saved.name, saved.kind),
+        image: null,
+        modifiedMs: null,
+      });
       continue;
     }
 

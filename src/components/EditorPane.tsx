@@ -69,11 +69,16 @@ export function EditorPane({ actions }: EditorPaneProps) {
         <div className="editor__title">
           <span className="editor__filename">
             {doc ? doc.name : hasWorkspace ? "No file open" : projectName}
+            {doc?.detached ? (
+              <span className="editor__detached-label">Detached</span>
+            ) : null}
             {dirty ? <span className="dirty-dot dirty-dot--inline" /> : null}
           </span>
           {doc ? (
             <span className="editor__meta" title={doc.path ?? undefined}>
-              {doc.path ?? "Not saved yet"}
+              {doc.detached
+                ? "Removed from project — use Save As to save"
+                : (doc.path ?? "Not saved yet")}
             </span>
           ) : (
             <span className="editor__meta">

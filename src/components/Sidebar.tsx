@@ -62,7 +62,11 @@ export function Sidebar({ actions }: SidebarProps) {
         {roots.length > 0 ? (
           <div className="tree">
             <div className="tree__section-label">Project files</div>
-            <FileTree roots={roots} onOpenFile={actions.openFile} />
+            <FileTree
+              roots={roots}
+              onOpenFile={actions.openFile}
+              onRemoveRoot={actions.removeRoot}
+            />
           </div>
         ) : (
           <div className="explorer-empty">
