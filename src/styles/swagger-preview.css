@@ -1,0 +1,34 @@
+.api-preview {
+  min-width: 0;
+  min-height: 100%;
+  overflow: auto;
+  background: #fff;
+  color: #3b4151;
+  color-scheme: light;
+}
+
+.api-preview .swagger-ui,
+.api-preview .asyncapi {
+  color: #3b4151;
+  font-family: Arial, sans-serif;
+}
+
+.api-preview__error,
+.api-preview__message {
+  margin: 24px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.api-preview__error strong {
+  color: var(--danger);
+}
+
+.api-preview__error pre {
+  overflow: auto;
+  white-space: pre-wrap;
+}

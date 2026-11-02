@@ -14,6 +14,8 @@ import { C4Preview } from "./C4Preview";
 import { DocumentTabs } from "./DocumentTabs";
 import { ImagePreview } from "./ImagePreview";
 import { MarkdownPreview } from "./MarkdownPreview";
+import { SwaggerPreview } from "./SwaggerPreview";
+import { isApiSpecFile } from "../lib/apiSpec";
 import { formatShortcut } from "../lib/platform";
 import {
   selectActiveDocument,
@@ -48,6 +50,7 @@ export function EditorPane({ actions }: EditorPaneProps) {
 
   const dirty = isDocumentDirty(doc);
   const isImage = doc?.kind === "image";
+  const isApiSpec = doc ? isApiSpecFile(doc.name, doc.content) : false;
 
   return (
     <main className="editor" aria-label="Editor">
@@ -162,6 +165,8 @@ export function EditorPane({ actions }: EditorPaneProps) {
                   <div className="editor__preview" aria-label="Preview">
                     {doc.kind === "markdown" ? (
                       <MarkdownPreview source={doc.content} />
+                    ) : isApiSpec ? (
+                      <SwaggerPreview source={doc.content} name={doc.name} />
                     ) : doc.kind === "likec4" ? (
                       <C4Preview
                         key={doc.id}

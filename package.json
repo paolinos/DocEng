@@ -12,23 +12,28 @@
     "tauri:build": "tauri build"
   },
   "dependencies": {
+    "@asyncapi/react-component": "^3.2.2",
     "@likec4/core": "1.60.0",
     "@likec4/language-services": "1.60.0",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.8.4",
     "@tauri-apps/plugin-opener": "^2",
     "@types/jest": "^30.0.0",
+    "js-yaml": "^4.3.2",
     "likec4": "1.60.0",
     "lucide-react": "^1.63.0",
     "mermaid": "12.2.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
+    "swagger-ui-react": "^5.34.1",
     "zustand": "^5.0.16"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
+    "@types/js-yaml": "^4.0.9",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/swagger-ui-react": "^5.18.0",
     "@vitejs/plugin-react": "^6.1.2",
     "jest": "^30.5.2",
     "ts-jest": "^29.4.15",
