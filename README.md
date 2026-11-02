@@ -1,4 +1,4 @@
-# docu
+# DocEng
 
 A project-based desktop editor for plain text and Markdown files, built with
 **Tauri 2**, **React 19**, **TypeScript**, and **Vite**.
@@ -62,18 +62,18 @@ creating a new one prompts once for all dirty tabs.
 
 The project (including an unsaved implicit project), open tabs, tab order,
 active tab, and unsaved buffers are restored on launch. State is stored in a
-SQLite database at `<app data dir>/docu.db`:
+SQLite database at `<app data dir>/doceng.db`:
 
-- Linux: `~/.local/share/docu/docu.db` (depending on the desktop environment)
-- macOS: `~/Library/Application Support/docu/docu.db`
-- Windows: `%APPDATA%\docu\docu.db`
+- Linux: `~/.local/share/com.doceng.app/doceng.db` (depending on the desktop environment)
+- macOS: `~/Library/Application Support/com.doceng.app/doceng.db`
+- Windows: `%APPDATA%\com.doceng.app\doceng.db`
 
 On startup, saved project roots and files are re-authorized. Paths that no
 longer exist are skipped and listed in a warning; the rest of the workspace is
 still restored. Clean files are reloaded from disk, while dirty files and
 untitled documents keep their in-memory contents. If the database cannot be
 read, the app starts with an empty session and keeps the unreadable file as
-`docu.db.bak` when possible.
+`doceng.db.bak` when possible.
 
 Session content is also written on every tab or project change and about half a
 second after the last edit. Closing the window flushes any pending write before

@@ -135,7 +135,7 @@ export function StatusBar() {
         {VIEW_LABELS[viewMode]}
       </span>
 
-      <span className="statusbar__version">docu 0.1.0</span>
+      <span className="statusbar__version">DocEng 0.1.0</span>
     </footer>
   );
 }

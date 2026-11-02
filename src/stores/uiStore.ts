@@ -43,7 +43,7 @@ export const useUiStore = create<UiState>()(
         }),
     }),
     {
-      name: "docu.ui",
+      name: "doceng.ui",
       version: 1,
       partialize: (state) => ({
         sidebarWidth: state.sidebarWidth,

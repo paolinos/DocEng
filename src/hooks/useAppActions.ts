@@ -827,7 +827,7 @@ export function useAppActions(): AppActions {
 
       showAbout: () => {
         push(
-          "docu 0.1.0 — a project-based Markdown and text editor built with Tauri 2 + React.",
+          "DocEng 0.1.0 — a project-based Markdown and text editor built with Tauri 2 + React.",
           "info",
           6500,
         );

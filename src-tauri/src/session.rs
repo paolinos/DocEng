@@ -74,7 +74,7 @@ pub struct SessionDb {
 impl SessionDb {
     pub fn initialize(app: &AppHandle) -> Self {
         let path = match app.path().app_data_dir() {
-            Ok(directory) => directory.join("docu.db"),
+            Ok(directory) => directory.join("doceng.db"),
             Err(error) => {
                 return Self {
                     connection: Mutex::new(None),

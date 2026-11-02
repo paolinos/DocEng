@@ -238,7 +238,7 @@ export function MenuBar({ actions }: MenuBarProps) {
       items: [
         {
           id: "about",
-          label: "About docu",
+          label: "About DocEng",
           icon: Info,
           action: actions.showAbout,
         },
@@ -338,7 +338,7 @@ export function MenuBar({ actions }: MenuBarProps) {
         <span className="brand-mark">
           <NotebookPen size={14} strokeWidth={2} />
         </span>
-        <span className="menubar__brand-name">docu</span>
+        <span className="menubar__brand-name">DocEng</span>
       </div>
 
       <div className="menubar__menus">

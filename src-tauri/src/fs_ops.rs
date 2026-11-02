@@ -581,7 +581,7 @@ fn temporary_path(parent: &Path, file_name: &OsStr) -> PathBuf {
         .as_nanos();
 
     parent.join(format!(
-        ".{}.docu-{}-{}.tmp",
+        ".{}.doceng-{}-{}.tmp",
         file_name.to_string_lossy(),
         std::process::id(),
         stamp
