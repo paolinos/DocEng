@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import {
   Columns2,
   Eye,
@@ -12,11 +13,13 @@ import {
 import type { AppActions } from "../hooks/useAppActions";
 import { C4Preview } from "./C4Preview";
 import { DocumentTabs } from "./DocumentTabs";
+import { FindBar } from "./FindBar";
 import { ImagePreview } from "./ImagePreview";
 import { MarkdownPreview } from "./MarkdownPreview";
 import { SwaggerPreview } from "./SwaggerPreview";
 import { isApiSpecFile } from "../lib/apiSpec";
 import { formatShortcut } from "../lib/platform";
+import { findMatches, buildSearchSegments } from "../lib/search";
 import {
   selectActiveDocument,
   useDocumentStore,
@@ -25,9 +28,30 @@ import {
   selectHasWorkspace,
   useProjectStore,
 } from "../stores/projectStore";
+import { useSearchStore } from "../stores/searchStore";
 import { useUiStore } from "../stores/uiStore";
 import { isDocumentDirty } from "../types";
 import type { ViewMode } from "../types";
+
+function scrollTextareaToOffset(
+  textarea: HTMLTextAreaElement,
+  offset: number,
+): void {
+  const lineHeight = Number.parseFloat(
+    window.getComputedStyle(textarea).lineHeight,
+  );
+  if (!Number.isFinite(lineHeight) || lineHeight <= 0) return;
+
+  const lineIndex = textarea.value.slice(0, offset).split("\n").length - 1;
+  const target =
+    lineIndex * lineHeight - textarea.clientHeight / 2 + lineHeight / 2;
+  const maxScroll = Math.max(
+    0,
+    textarea.scrollHeight - textarea.clientHeight,
+  );
+
+  textarea.scrollTop = Math.min(Math.max(0, target), maxScroll);
+}
 
 interface EditorPaneProps {
   actions: AppActions;
@@ -47,6 +71,121 @@ export function EditorPane({ actions }: EditorPaneProps) {
   const sidebarCollapsed = useUiStore((state) => state.sidebarCollapsed);
   const viewMode = useUiStore((state) => state.viewMode);
   const setViewMode = useUiStore((state) => state.setViewMode);
+  const editorRef = useRef<HTMLTextAreaElement>(null);
+  const highlightRef = useRef<HTMLDivElement>(null);
+
+  const findOpen = useSearchStore((state) => state.findOpen);
+  const findQuery = useSearchStore((state) => state.query);
+  const findCaseSensitive = useSearchStore((state) => state.caseSensitive);
+  const findActiveIndex = useSearchStore((state) => state.activeIndex);
+  const findRevealRequest = useSearchStore((state) => state.revealRequest);
+  const setFindActiveIndex = useSearchStore((state) => state.setActiveIndex);
+  const closeFind = useSearchStore((state) => state.closeFind);
+  const resetFindForDocument = useSearchStore(
+    (state) => state.resetForDocument,
+  );
+  const previousDocumentId = useRef<string | null>(null);
+
+  const matches = useMemo(
+    () =>
+      findOpen && doc !== null && doc.kind !== "image"
+        ? findMatches(doc.content, findQuery, findCaseSensitive)
+        : [],
+    [findOpen, doc, findQuery, findCaseSensitive],
+  );
+
+  const activeMatch =
+    matches.length === 0
+      ? null
+      : (matches[Math.min(findActiveIndex, matches.length - 1)] ?? null);
+
+  const activeMatchIndex =
+    matches.length === 0
+      ? -1
+      : Math.min(findActiveIndex, matches.length - 1);
+
+  const highlightSegments = useMemo(
+    () =>
+      findOpen && viewMode !== "preview" && matches.length > 0
+        ? buildSearchSegments(doc?.content ?? "", matches)
+        : [],
+    [findOpen, viewMode, matches, doc?.content],
+  );
+
+  const syncHighlightLayer = useCallback(() => {
+    const textarea = editorRef.current;
+    const layer = highlightRef.current;
+    if (!textarea || !layer) return;
+
+    layer.style.width = `${textarea.clientWidth}px`;
+    layer.style.height = `${textarea.clientHeight}px`;
+    layer.scrollTop = textarea.scrollTop;
+    layer.scrollLeft = textarea.scrollLeft;
+  }, []);
+
+  useLayoutEffect(() => {
+    syncHighlightLayer();
+  });
+
+  useEffect(() => {
+    const textarea = editorRef.current;
+    if (!textarea) return;
+
+    const observer = new ResizeObserver(syncHighlightLayer);
+    observer.observe(textarea);
+    return () => observer.disconnect();
+  }, [syncHighlightLayer, viewMode, doc?.id]);
+
+  useEffect(() => {
+    const id = doc?.id ?? null;
+    if (previousDocumentId.current === null) {
+      previousDocumentId.current = id;
+      return;
+    }
+    if (previousDocumentId.current === id) return;
+
+    previousDocumentId.current = id;
+    resetFindForDocument();
+  }, [doc?.id, resetFindForDocument]);
+
+  useEffect(() => {
+    if (!findOpen) return;
+    if (doc === null || doc.kind === "image") {
+      closeFind();
+      return;
+    }
+    if (matches.length === 0) {
+      if (findActiveIndex !== 0) setFindActiveIndex(0);
+      return;
+    }
+    if (findActiveIndex >= matches.length) {
+      setFindActiveIndex(0);
+    }
+  }, [
+    findOpen,
+    doc,
+    closeFind,
+    matches.length,
+    findActiveIndex,
+    setFindActiveIndex,
+  ]);
+
+  useEffect(() => {
+    if (!findOpen || activeMatch === null || viewMode === "preview") return;
+
+    const textarea = editorRef.current;
+    if (!textarea) return;
+
+    textarea.setSelectionRange(activeMatch.start, activeMatch.end);
+    scrollTextareaToOffset(textarea, activeMatch.start);
+    syncHighlightLayer();
+  }, [
+    findOpen,
+    findRevealRequest,
+    viewMode,
+    doc?.id,
+    syncHighlightLayer,
+  ]);
 
   const dirty = isDocumentDirty(doc);
   const isImage = doc?.kind === "image";
@@ -134,6 +273,19 @@ export function EditorPane({ actions }: EditorPaneProps) {
         </button>
       </header>
 
+      {findOpen && doc && doc.kind !== "image" ? (
+        <FindBar
+          matchCount={matches.length}
+          activeIndex={findActiveIndex}
+          onNext={actions.findNext}
+          onPrevious={actions.findPrevious}
+          onClose={() => {
+            actions.closeFind();
+            window.requestAnimationFrame(() => editorRef.current?.focus());
+          }}
+        />
+      ) : null}
+
       <div className="editor__body">
         {doc ? (
           <div
@@ -148,17 +300,46 @@ export function EditorPane({ actions }: EditorPaneProps) {
             ) : (
               <>
                 {viewMode !== "preview" ? (
-                  <textarea
-                    key={doc.id}
-                    className="editor__text"
-                    aria-label={`Content of ${doc.name}`}
-                    value={doc.content}
-                    spellCheck={doc.kind === "markdown" || doc.kind === "text"}
-                    autoFocus
-                    onChange={(event) =>
-                      updateContent(doc.id, event.target.value)
-                    }
-                  />
+                  <div className="editor__text-wrap">
+                    {highlightSegments.length > 0 ? (
+                      <div
+                        ref={highlightRef}
+                        className="editor__highlight-layer"
+                        aria-hidden="true"
+                      >
+                        {highlightSegments.map((segment, index) =>
+                          segment.matchIndex === null ? (
+                            <span key={index}>{segment.text}</span>
+                          ) : (
+                            <mark
+                              key={index}
+                              className={
+                                segment.matchIndex === activeMatchIndex
+                                  ? "editor__highlight editor__highlight--active"
+                                  : "editor__highlight"
+                              }
+                            >
+                              {segment.text}
+                            </mark>
+                          ),
+                        )}
+                      </div>
+                    ) : null}
+
+                    <textarea
+                      key={doc.id}
+                      ref={editorRef}
+                      className="editor__text"
+                      aria-label={`Content of ${doc.name}`}
+                      value={doc.content}
+                      spellCheck={doc.kind === "markdown" || doc.kind === "text"}
+                      autoFocus
+                      onChange={(event) =>
+                        updateContent(doc.id, event.target.value)
+                      }
+                      onScroll={syncHighlightLayer}
+                    />
+                  </div>
                 ) : null}
 
                 {viewMode !== "edit" ? (

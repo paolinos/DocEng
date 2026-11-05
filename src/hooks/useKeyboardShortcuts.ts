@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import type { AppActions } from "./useAppActions";
+import { useSearchStore } from "../stores/searchStore";
 
 /**
  * Global keyboard shortcuts. Menu shortcuts are kept in sync with MenuBar.
@@ -12,6 +13,18 @@ export function useKeyboardShortcuts(
     if (!enabled) return;
 
     function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && useSearchStore.getState().findOpen) {
+        const target = event.target;
+        if (target instanceof Element && target.closest(".findbar")) {
+          return;
+        }
+
+        event.preventDefault();
+        actions.closeFind();
+        document.querySelector<HTMLTextAreaElement>(".editor__text")?.focus();
+        return;
+      }
+
       if (!(event.metaKey || event.ctrlKey)) return;
 
       if (event.key === "Tab") {
@@ -21,6 +34,11 @@ export function useKeyboardShortcuts(
       }
 
       switch (event.key.toLowerCase()) {
+        case "f":
+          if (event.shiftKey) break;
+          event.preventDefault();
+          actions.openFind();
+          break;
         case "s":
           event.preventDefault();
           if (event.shiftKey) {

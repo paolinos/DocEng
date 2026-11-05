@@ -14,9 +14,10 @@ Phases 0–2 are complete, with a basic Markdown preview from Phase 3:
 - [x] Tauri 2 + React + TypeScript + Vite scaffold
 - [x] 30 / 70 workspace with a draggable divider and collapsible sidebar
 - [x] In-app menu bar: Project, File, View, Help
-- [x] Keyboard shortcuts (`Ctrl/Cmd+B`, `Ctrl/Cmd+N`, `Ctrl/Cmd+Alt+N`,
-      `Ctrl/Cmd+O`, `Ctrl/Cmd+S`, `Ctrl/Cmd+Shift+S`, `Ctrl/Cmd+W`,
-      `Ctrl/Cmd+Tab`, `Ctrl/Cmd+1/2/3`)
+- [x] Keyboard shortcuts (`Ctrl/Cmd+B`, `Ctrl/Cmd+F`, `Ctrl/Cmd+N`,
+      `Ctrl/Cmd+Alt+N`, `Ctrl/Cmd+O`, `Ctrl/Cmd+S`, `Ctrl/Cmd+Shift+S`,
+      `Ctrl/Cmd+W`, `Ctrl/Cmd+Tab`, `Ctrl/Cmd+1/2/3`)
+- [x] Find text in the active document with match navigation
 - [x] Zustand stores for project, document, UI, and notifications
 - [x] Rust filesystem commands with a canonical-path allowlist
 - [x] Atomic text-file writes, UTF-8 / binary / size checks, mtime conflicts
@@ -78,6 +79,20 @@ read, the app starts with an empty session and keeps the unreadable file as
 Session content is also written on every tab or project change and about half a
 second after the last edit. Closing the window flushes any pending write before
 the window is destroyed.
+
+## Finding text in the active file
+
+`Ctrl/Cmd+F` opens an inline find bar for the active document. It searches the
+in-memory buffer, so unsaved edits are included immediately. `Enter` and
+`Shift+Enter` move to the next and previous match, the match counter reports the
+current position, and the `Aa` button toggles case-sensitive matching. `Esc`
+closes the bar and returns focus to the editor.
+
+All matches are highlighted in the editor, with the active match emphasized in a
+stronger color. The highlight layer stays aligned while typing and scrolling.
+
+The find bar searches only the current tab. It never reads files from disk and
+does not involve the Rust filesystem layer.
 
 ## Prerequisites
 

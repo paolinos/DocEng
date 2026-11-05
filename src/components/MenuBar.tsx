@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import type { ComponentType, KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Columns2,
   Eye,
   FilePlus,
@@ -16,6 +18,7 @@ import {
   Pencil,
   RotateCcw,
   Save,
+  Search,
   X,
 } from "lucide-react";
 import { formatShortcut } from "../lib/platform";
@@ -28,9 +31,10 @@ import {
   selectCanSaveProject,
   useProjectStore,
 } from "../stores/projectStore";
+import { useSearchStore } from "../stores/searchStore";
 import { useUiStore } from "../stores/uiStore";
 
-type MenuId = "project" | "file" | "view" | "help";
+type MenuId = "project" | "file" | "edit" | "view" | "help";
 type IconComponent = ComponentType<{ size?: number | string; strokeWidth?: number }>;
 
 interface MenuItem {
@@ -55,7 +59,7 @@ interface MenuDefinition {
   items: MenuEntry[];
 }
 
-const MENU_ORDER: MenuId[] = ["project", "file", "view", "help"];
+const MENU_ORDER: MenuId[] = ["project", "file", "edit", "view", "help"];
 
 function isSeparator(entry: MenuEntry): entry is MenuSeparator {
   return "type" in entry && entry.type === "separator";
@@ -79,6 +83,8 @@ export function MenuBar({ actions }: MenuBarProps) {
   const doc = useDocumentStore(selectActiveDocument);
   const tabCount = useDocumentStore((state) => state.documents.length);
   const hasDocument = doc !== null;
+  const findOpen = useSearchStore((state) => state.findOpen);
+  const canFind = doc !== null && doc.kind !== "image";
 
   const menus: Record<MenuId, MenuDefinition> = {
     project: {
@@ -168,6 +174,33 @@ export function MenuBar({ actions }: MenuBarProps) {
           icon: X,
           disabled: tabCount === 0,
           action: actions.closeAllFiles,
+        },
+      ],
+    },
+    edit: {
+      label: "Edit",
+      items: [
+        {
+          id: "find",
+          label: "Find…",
+          icon: Search,
+          shortcut: formatShortcut("F"),
+          disabled: !canFind,
+          action: actions.openFind,
+        },
+        {
+          id: "find-next",
+          label: "Find Next",
+          icon: ChevronDown,
+          disabled: !findOpen,
+          action: actions.findNext,
+        },
+        {
+          id: "find-previous",
+          label: "Find Previous",
+          icon: ChevronUp,
+          disabled: !findOpen,
+          action: actions.findPrevious,
         },
       ],
     },

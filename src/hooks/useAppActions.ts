@@ -17,6 +17,7 @@ import {
 } from "../types";
 import { errorMessage, fileSystem, isAppError } from "../lib/fs";
 import { parseProjectFile, serializeProject } from "../lib/projectFile";
+import { findMatches } from "../lib/search";
 import { basename } from "../lib/utils";
 import {
   findDocumentByPath,
@@ -25,6 +26,7 @@ import {
   useDocumentStore,
 } from "../stores/documentStore";
 import { useProjectStore } from "../stores/projectStore";
+import { useSearchStore } from "../stores/searchStore";
 import { useToastStore } from "../stores/toastStore";
 import { useUiStore } from "../stores/uiStore";
 
@@ -48,6 +50,10 @@ export interface AppActions {
   cycleTab: (direction: 1 | -1) => void;
   toggleSidebar: () => void;
   setViewMode: (mode: ViewMode) => void;
+  openFind: () => void;
+  closeFind: () => void;
+  findNext: () => void;
+  findPrevious: () => void;
   resetLayout: () => void;
   showAbout: () => void;
 }
@@ -164,6 +170,26 @@ async function defaultProjectSavePath(
     return await join(directory.path, fileName);
   } catch {
     return fileName;
+  }
+}
+
+function selectedEditorText(): string {
+  const active = document.activeElement;
+  if (!(active instanceof HTMLTextAreaElement)) return "";
+  if (!active.classList.contains("editor__text")) return "";
+
+  const { selectionStart, selectionEnd, value } = active;
+  if (selectionEnd <= selectionStart) return "";
+
+  const selected = value.slice(selectionStart, selectionEnd);
+  if (selected.length > 100 || /[\r\n]/.test(selected)) return "";
+
+  return selected;
+}
+
+function ensureFindableView(): void {
+  if (useUiStore.getState().viewMode === "preview") {
+    useUiStore.getState().setViewMode("split");
   }
 }
 
@@ -819,6 +845,52 @@ export function useAppActions(): AppActions {
       toggleSidebar: () => useUiStore.getState().toggleSidebar(),
 
       setViewMode: (mode) => useUiStore.getState().setViewMode(mode),
+
+      openFind: () => {
+        const doc = selectActiveDocument(useDocumentStore.getState());
+        if (!doc || doc.kind === "image") {
+          push("Open a text file to search in it.", "info");
+          return;
+        }
+
+        ensureFindableView();
+        const selected = selectedEditorText();
+        useSearchStore
+          .getState()
+          .openFind(selected.length > 0 ? selected : undefined);
+      },
+
+      closeFind: () => useSearchStore.getState().closeFind(),
+
+      findNext: () => {
+        const doc = selectActiveDocument(useDocumentStore.getState());
+        const search = useSearchStore.getState();
+        if (!doc || doc.kind === "image" || !search.findOpen) return;
+        if (search.query.length === 0) return;
+
+        ensureFindableView();
+        const matchCount = findMatches(
+          doc.content,
+          search.query,
+          search.caseSensitive,
+        ).length;
+        search.nextMatch(matchCount);
+      },
+
+      findPrevious: () => {
+        const doc = selectActiveDocument(useDocumentStore.getState());
+        const search = useSearchStore.getState();
+        if (!doc || doc.kind === "image" || !search.findOpen) return;
+        if (search.query.length === 0) return;
+
+        ensureFindableView();
+        const matchCount = findMatches(
+          doc.content,
+          search.query,
+          search.caseSensitive,
+        ).length;
+        search.previousMatch(matchCount);
+      },
 
       resetLayout: () => {
         useUiStore.getState().resetLayout();
