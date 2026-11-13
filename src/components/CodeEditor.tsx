@@ -32,6 +32,7 @@ import {
 } from "@codemirror/language";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
+import { yaml } from "@codemirror/lang-yaml";
 import { languages } from "@codemirror/language-data";
 import { docEngHighlightStyle, docEngTheme } from "../lib/editorTheme";
 import type { SearchMatch } from "../lib/search";
@@ -131,7 +132,7 @@ function languageDescriptionFor(
   );
 }
 
-function initialLanguageExtension(
+function languageExtensionFor(
   kind: DocumentKind,
   language: string | null,
   path: string | null,
@@ -140,7 +141,12 @@ function initialLanguageExtension(
     return markdown({ codeLanguages: languages });
   }
 
-  return languageDescriptionFor(kind, language, path)?.support ?? [];
+  if (kind === "code" && language === "YAML") {
+    return yaml();
+  }
+
+  const description = languageDescriptionFor(kind, language, path);
+  return description?.support ?? [];
 }
 
 function contentAttributes(
@@ -225,7 +231,7 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(
             onChangeRef.current(update.state.doc.toString());
           }),
           languageCompartment.current.of(
-            initialLanguageExtension(kind, language, path),
+            languageExtensionFor(kind, language, path),
           ),
           attributesCompartment.current.of(
             contentAttributes(ariaLabel, spellCheck),
@@ -253,51 +259,11 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(
       const view = viewRef.current;
       if (!view) return;
 
-      if (kind === "markdown") {
-        view.dispatch({
-          effects: languageCompartment.current.reconfigure(
-            markdown({ codeLanguages: languages }),
-          ),
-        });
-        return;
-      }
+      const extension = languageExtensionFor(kind, language, path);
 
-      const description =
-        kind === "code" ? languageDescriptionFor(kind, language, path) : null;
-
-      if (description === null) {
-        view.dispatch({
-          effects: languageCompartment.current.reconfigure([]),
-        });
-        return;
-      }
-
-      if (description.support !== undefined) {
-        view.dispatch({
-          effects: languageCompartment.current.reconfigure(
-            description.support,
-          ),
-        });
-        return;
-      }
-
-      let cancelled = false;
-
-      description
-        .load()
-        .then((support) => {
-          if (cancelled) return;
-          view.dispatch({
-            effects: languageCompartment.current.reconfigure(support),
-          });
-        })
-        .catch(() => {
-          // Keep the document as plain text if the parser cannot load.
-        });
-
-      return () => {
-        cancelled = true;
-      };
+      view.dispatch({
+        effects: languageCompartment.current.reconfigure(extension),
+      });
     }, [kind, language, path]);
 
     useEffect(() => {

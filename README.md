@@ -88,7 +88,8 @@ the window is destroyed.
 The editor is built on CodeMirror 6. Markdown files are parsed as Markdown,
 including highlighted fenced code blocks, and code files are colored by their
 language. Parsers from `@codemirror/language-data` are loaded on demand, so
-opening a file does not download every supported grammar.
+opening a file does not download every supported grammar. YAML files use the
+dedicated `@codemirror/lang-yaml` parser.
 
 The dark theme adds line numbers, the active-line marker, bracket matching, and
 find-match highlights while keeping the app's existing monospace layout. Text and
