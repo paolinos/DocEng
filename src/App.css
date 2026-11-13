@@ -1157,69 +1157,24 @@ body.is-resizing .resize-handle::after {
   flex: 1;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
 }
 
-.editor__text,
-.editor__highlight-layer {
-  box-sizing: border-box;
-  padding: 20px 24px 40px;
-  border: 0;
-  font-family:
-    ui-monospace,
-    SFMono-Regular,
-    "SF Mono",
-    Menlo,
-    Consolas,
-    "Liberation Mono",
-    monospace;
-  font-size: 13px;
-  line-height: 1.7;
-  letter-spacing: normal;
-  tab-size: 2;
-  white-space: pre-wrap;
-  overflow-wrap: break-word;
-  word-break: normal;
-}
-
-.editor__text {
-  position: relative;
-  z-index: 1;
+.code-editor {
+  display: flex;
   flex: 1;
-  width: 100%;
   min-width: 0;
   min-height: 0;
-  overflow: auto;
+}
+
+.code-editor .cm-editor {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+
+.code-editor .cm-editor.cm-focused {
   outline: none;
-  resize: none;
-  background: transparent;
-  color: var(--text);
-}
-
-.editor__highlight-layer {
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 0;
-  overflow: hidden;
-  color: transparent;
-  pointer-events: none;
-  user-select: none;
-}
-
-.editor__highlight {
-  border-radius: 2px;
-  background: rgba(250, 204, 21, 0.24);
-  box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.32);
-  color: transparent;
-}
-
-.editor__highlight--active {
-  background: rgba(249, 115, 22, 0.42);
-  box-shadow: 0 0 0 1px rgba(249, 115, 22, 0.85);
-}
-
-.editor__text::placeholder {
-  color: var(--text-muted);
 }
 
 .editor__preview {

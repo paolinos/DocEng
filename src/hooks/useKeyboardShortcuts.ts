@@ -21,7 +21,9 @@ export function useKeyboardShortcuts(
 
         event.preventDefault();
         actions.closeFind();
-        document.querySelector<HTMLTextAreaElement>(".editor__text")?.focus();
+        document
+          .querySelector<HTMLElement>(".code-editor .cm-content")
+          ?.focus();
         return;
       }
 

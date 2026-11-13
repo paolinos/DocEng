@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
+import { EditorView } from "@codemirror/view";
 import { join } from "@tauri-apps/api/path";
 import {
   open as openDialog,
@@ -181,13 +182,15 @@ async function defaultProjectSavePath(
 
 function selectedEditorText(): string {
   const active = document.activeElement;
-  if (!(active instanceof HTMLTextAreaElement)) return "";
-  if (!active.classList.contains("editor__text")) return "";
+  if (!(active instanceof HTMLElement)) return "";
 
-  const { selectionStart, selectionEnd, value } = active;
-  if (selectionEnd <= selectionStart) return "";
+  const view = EditorView.findFromDOM(active);
+  if (view === null) return "";
 
-  const selected = value.slice(selectionStart, selectionEnd);
+  const { from, to } = view.state.selection.main;
+  if (to <= from) return "";
+
+  const selected = view.state.sliceDoc(from, to);
   if (selected.length > 100 || /[\r\n]/.test(selected)) return "";
 
   return selected;

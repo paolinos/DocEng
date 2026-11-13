@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   Columns2,
   Eye,
@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import type { AppActions } from "../hooks/useAppActions";
 import { C4Preview } from "./C4Preview";
+import { CodeEditor } from "./CodeEditor";
+import type { CodeEditorHandle } from "./CodeEditor";
 import { DocumentTabs } from "./DocumentTabs";
 import { FindBar } from "./FindBar";
 import { ImagePreview } from "./ImagePreview";
@@ -20,11 +22,7 @@ import { SearchPanel } from "./SearchPanel";
 import { SwaggerPreview } from "./SwaggerPreview";
 import { isApiSpecFile } from "../lib/apiSpec";
 import { formatShortcut } from "../lib/platform";
-import {
-  findMatches,
-  buildSearchSegments,
-  jsOffsetForLineColumn,
-} from "../lib/search";
+import { findMatches, jsOffsetForLineColumn } from "../lib/search";
 import {
   selectActiveDocument,
   useDocumentStore,
@@ -37,26 +35,6 @@ import { useSearchStore } from "../stores/searchStore";
 import { useUiStore } from "../stores/uiStore";
 import { isDocumentDirty } from "../types";
 import type { ViewMode } from "../types";
-
-function scrollTextareaToOffset(
-  textarea: HTMLTextAreaElement,
-  offset: number,
-): void {
-  const lineHeight = Number.parseFloat(
-    window.getComputedStyle(textarea).lineHeight,
-  );
-  if (!Number.isFinite(lineHeight) || lineHeight <= 0) return;
-
-  const lineIndex = textarea.value.slice(0, offset).split("\n").length - 1;
-  const target =
-    lineIndex * lineHeight - textarea.clientHeight / 2 + lineHeight / 2;
-  const maxScroll = Math.max(
-    0,
-    textarea.scrollHeight - textarea.clientHeight,
-  );
-
-  textarea.scrollTop = Math.min(Math.max(0, target), maxScroll);
-}
 
 interface EditorPaneProps {
   actions: AppActions;
@@ -76,8 +54,7 @@ export function EditorPane({ actions }: EditorPaneProps) {
   const sidebarCollapsed = useUiStore((state) => state.sidebarCollapsed);
   const viewMode = useUiStore((state) => state.viewMode);
   const setViewMode = useUiStore((state) => state.setViewMode);
-  const editorRef = useRef<HTMLTextAreaElement>(null);
-  const highlightRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<CodeEditorHandle>(null);
 
   const findOpen = useSearchStore((state) => state.findOpen);
   const findQuery = useSearchStore((state) => state.query);
@@ -116,38 +93,6 @@ export function EditorPane({ actions }: EditorPaneProps) {
       ? -1
       : Math.min(findActiveIndex, matches.length - 1);
 
-  const highlightSegments = useMemo(
-    () =>
-      findOpen && viewMode !== "preview" && matches.length > 0
-        ? buildSearchSegments(doc?.content ?? "", matches)
-        : [],
-    [findOpen, viewMode, matches, doc?.content],
-  );
-
-  const syncHighlightLayer = useCallback(() => {
-    const textarea = editorRef.current;
-    const layer = highlightRef.current;
-    if (!textarea || !layer) return;
-
-    layer.style.width = `${textarea.clientWidth}px`;
-    layer.style.height = `${textarea.clientHeight}px`;
-    layer.scrollTop = textarea.scrollTop;
-    layer.scrollLeft = textarea.scrollLeft;
-  }, []);
-
-  useLayoutEffect(() => {
-    syncHighlightLayer();
-  });
-
-  useEffect(() => {
-    const textarea = editorRef.current;
-    if (!textarea) return;
-
-    const observer = new ResizeObserver(syncHighlightLayer);
-    observer.observe(textarea);
-    return () => observer.disconnect();
-  }, [syncHighlightLayer, viewMode, doc?.id]);
-
   useEffect(() => {
     const id = doc?.id ?? null;
     if (previousDocumentId.current === null) {
@@ -185,19 +130,8 @@ export function EditorPane({ actions }: EditorPaneProps) {
   useEffect(() => {
     if (!findOpen || activeMatch === null || viewMode === "preview") return;
 
-    const textarea = editorRef.current;
-    if (!textarea) return;
-
-    textarea.setSelectionRange(activeMatch.start, activeMatch.end);
-    scrollTextareaToOffset(textarea, activeMatch.start);
-    syncHighlightLayer();
-  }, [
-    findOpen,
-    findRevealRequest,
-    viewMode,
-    doc?.id,
-    syncHighlightLayer,
-  ]);
+    editorRef.current?.revealRange(activeMatch.start, activeMatch.end);
+  }, [findOpen, findRevealRequest, viewMode, doc?.id]);
 
   useEffect(() => {
     if (projectReveal === null) return;
@@ -213,9 +147,6 @@ export function EditorPane({ actions }: EditorPaneProps) {
       return;
     }
 
-    const textarea = editorRef.current;
-    if (!textarea) return;
-
     const start = jsOffsetForLineColumn(
       doc.content,
       projectReveal.line,
@@ -226,19 +157,9 @@ export function EditorPane({ actions }: EditorPaneProps) {
       start + projectReveal.match.length,
     );
 
-    textarea.focus();
-    textarea.setSelectionRange(start, end);
-    scrollTextareaToOffset(textarea, start);
-    syncHighlightLayer();
+    editorRef.current?.revealRange(start, end, { focus: true });
     clearProjectReveal();
-  }, [
-    projectReveal,
-    doc,
-    viewMode,
-    setViewMode,
-    clearProjectReveal,
-    syncHighlightLayer,
-  ]);
+  }, [projectReveal, doc, viewMode, setViewMode, clearProjectReveal]);
 
   const dirty = isDocumentDirty(doc);
   const isImage = doc?.kind === "image";
@@ -363,43 +284,20 @@ export function EditorPane({ actions }: EditorPaneProps) {
               <>
                 {viewMode !== "preview" ? (
                   <div className="editor__text-wrap">
-                    {highlightSegments.length > 0 ? (
-                      <div
-                        ref={highlightRef}
-                        className="editor__highlight-layer"
-                        aria-hidden="true"
-                      >
-                        {highlightSegments.map((segment, index) =>
-                          segment.matchIndex === null ? (
-                            <span key={index}>{segment.text}</span>
-                          ) : (
-                            <mark
-                              key={index}
-                              className={
-                                segment.matchIndex === activeMatchIndex
-                                  ? "editor__highlight editor__highlight--active"
-                                  : "editor__highlight"
-                              }
-                            >
-                              {segment.text}
-                            </mark>
-                          ),
-                        )}
-                      </div>
-                    ) : null}
-
-                    <textarea
+                    <CodeEditor
                       key={doc.id}
                       ref={editorRef}
-                      className="editor__text"
-                      aria-label={`Content of ${doc.name}`}
-                      value={doc.content}
-                      spellCheck={doc.kind === "markdown" || doc.kind === "text"}
-                      autoFocus
-                      onChange={(event) =>
-                        updateContent(doc.id, event.target.value)
+                      content={doc.content}
+                      kind={doc.kind}
+                      language={doc.language}
+                      path={doc.path}
+                      ariaLabel={`Content of ${doc.name}`}
+                      spellCheck={
+                        doc.kind === "markdown" || doc.kind === "text"
                       }
-                      onScroll={syncHighlightLayer}
+                      matches={matches}
+                      activeMatchIndex={activeMatchIndex}
+                      onChange={(content) => updateContent(doc.id, content)}
                     />
                   </div>
                 ) : null}

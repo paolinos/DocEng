@@ -19,6 +19,8 @@ Phases 0–2 are complete, with a basic Markdown preview from Phase 3:
       `Ctrl/Cmd+Shift+S`, `Ctrl/Cmd+W`, `Ctrl/Cmd+Tab`, `Ctrl/Cmd+1/2/3`)
 - [x] Find text in the active document with match navigation
 - [x] Find in Project across every saved file in the workspace
+- [x] IDE-style syntax highlighting for Markdown, fenced code blocks, and common
+      code languages
 - [x] Zustand stores for project, document, UI, and notifications
 - [x] Rust filesystem commands with a canonical-path allowlist
 - [x] Atomic text-file writes, UTF-8 / binary / size checks, mtime conflicts
@@ -81,6 +83,17 @@ Session content is also written on every tab or project change and about half a
 second after the last edit. Closing the window flushes any pending write before
 the window is destroyed.
 
+## Syntax highlighting
+
+The editor is built on CodeMirror 6. Markdown files are parsed as Markdown,
+including highlighted fenced code blocks, and code files are colored by their
+language. Parsers from `@codemirror/language-data` are loaded on demand, so
+opening a file does not download every supported grammar.
+
+The dark theme adds line numbers, the active-line marker, bracket matching, and
+find-match highlights while keeping the app's existing monospace layout. Text and
+Markdown files keep spell checking; code files do not.
+
 ## Finding text in the active file
 
 `Ctrl/Cmd+F` opens an inline find bar for the active document. It searches the
@@ -90,7 +103,8 @@ current position, and the `Aa` button toggles case-sensitive matching. `Esc`
 closes the bar and returns focus to the editor.
 
 All matches are highlighted in the editor, with the active match emphasized in a
-stronger color. The highlight layer stays aligned while typing and scrolling.
+stronger color. Highlights are CodeMirror decorations, so they stay aligned while
+typing, scrolling, and switching between edit and split views.
 
 The find bar searches only the current tab. It never reads files from disk and
 does not involve the Rust filesystem layer.
@@ -156,7 +170,7 @@ cargo test
 src/
   components/       Menu bar, sidebar, tab strip, editor shell, status bar, toasts
   hooks/            Global shortcuts, app actions, session restore/persistence
-  lib/              Tauri filesystem/session wrappers, project YAML, helpers
+  lib/              Tauri filesystem/session wrappers, project YAML, editor theme, helpers
   stores/           Zustand: project, document tabs, UI, notifications
   types.ts          Project and document types
 

@@ -1,5 +1,4 @@
 import {
-  buildSearchSegments,
   findMatches,
   groupSearchHits,
   jsOffsetForLineColumn,
@@ -72,61 +71,6 @@ describe("findMatches", () => {
 
   it("returns an empty list when nothing matches", () => {
     expect(findMatches("some text", "missing")).toEqual([]);
-  });
-});
-
-describe("buildSearchSegments", () => {
-  it("returns no segments for empty text", () => {
-    expect(buildSearchSegments("", [])).toEqual([]);
-  });
-
-  it("returns the whole text as unmatched when there are no matches", () => {
-    expect(buildSearchSegments("some text", [])).toEqual([
-      { text: "some text", matchIndex: null },
-    ]);
-  });
-
-  it("alternates unmatched and matched segments in order", () => {
-    const text = "one two one";
-    const segments = buildSearchSegments(text, findMatches(text, "one"));
-
-    expect(segments).toEqual([
-      { text: "one", matchIndex: 0 },
-      { text: " two ", matchIndex: null },
-      { text: "one", matchIndex: 1 },
-    ]);
-  });
-
-  it("keeps leading, trailing, and newline text intact", () => {
-    const text = "\nbefore match after\n";
-    const segments = buildSearchSegments(text, findMatches(text, "match"));
-
-    expect(segments).toEqual([
-      { text: "\nbefore ", matchIndex: null },
-      { text: "match", matchIndex: 0 },
-      { text: " after\n", matchIndex: null },
-    ]);
-    expect(segments.map((segment) => segment.text).join("")).toBe(text);
-  });
-
-  it("handles a match at the very beginning and end of the text", () => {
-    const text = "match middle match";
-    const segments = buildSearchSegments(text, findMatches(text, "match"));
-
-    expect(segments).toEqual([
-      { text: "match", matchIndex: 0 },
-      { text: " middle ", matchIndex: null },
-      { text: "match", matchIndex: 1 },
-    ]);
-  });
-
-  it("clamps malformed offsets to the text length", () => {
-    const segments = buildSearchSegments("abc", [{ start: 1, end: 99 }]);
-
-    expect(segments).toEqual([
-      { text: "a", matchIndex: null },
-      { text: "bc", matchIndex: 0 },
-    ]);
   });
 });
 
