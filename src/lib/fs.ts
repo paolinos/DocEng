@@ -40,6 +40,28 @@ export interface NewFileAuthorization {
   added: boolean;
 }
 
+export interface SearchHit {
+  /** Absolute path of the matching file. */
+  path: string;
+  name: string;
+  /** 1-based line number. */
+  line: number;
+  /** 1-based UTF-8 byte column within the line. */
+  column: number;
+  /** Matching line, or a bounded window around the match. */
+  text: string;
+  before: string;
+  match: string;
+  after: string;
+}
+
+export interface SearchInProjectResponse {
+  totalMatches: number;
+  results: SearchHit[];
+  truncated: boolean;
+  filesSearched: number;
+}
+
 export interface AppError {
   code: string;
   message: string;
@@ -97,6 +119,14 @@ export const fileSystem = {
 
   readTextFile(path: string): Promise<TextFileInfo> {
     return invoke<TextFileInfo>("read_text_file", { path });
+  },
+
+  /**
+   * Searches every authorized project root for a literal, case-insensitive
+   * substring. The frontend only sends the query; Rust snapshots the roots.
+   */
+  searchInProject(query: string): Promise<SearchInProjectResponse> {
+    return invoke<SearchInProjectResponse>("search_in_project", { query });
   },
 
   /**

@@ -14,10 +14,11 @@ Phases 0–2 are complete, with a basic Markdown preview from Phase 3:
 - [x] Tauri 2 + React + TypeScript + Vite scaffold
 - [x] 30 / 70 workspace with a draggable divider and collapsible sidebar
 - [x] In-app menu bar: Project, File, View, Help
-- [x] Keyboard shortcuts (`Ctrl/Cmd+B`, `Ctrl/Cmd+F`, `Ctrl/Cmd+N`,
-      `Ctrl/Cmd+Alt+N`, `Ctrl/Cmd+O`, `Ctrl/Cmd+S`, `Ctrl/Cmd+Shift+S`,
-      `Ctrl/Cmd+W`, `Ctrl/Cmd+Tab`, `Ctrl/Cmd+1/2/3`)
+- [x] Keyboard shortcuts (`Ctrl/Cmd+B`, `Ctrl/Cmd+F`, `Ctrl/Cmd+Shift+F`,
+      `Ctrl/Cmd+N`, `Ctrl/Cmd+Alt+N`, `Ctrl/Cmd+O`, `Ctrl/Cmd+S`,
+      `Ctrl/Cmd+Shift+S`, `Ctrl/Cmd+W`, `Ctrl/Cmd+Tab`, `Ctrl/Cmd+1/2/3`)
 - [x] Find text in the active document with match navigation
+- [x] Find in Project across every saved file in the workspace
 - [x] Zustand stores for project, document, UI, and notifications
 - [x] Rust filesystem commands with a canonical-path allowlist
 - [x] Atomic text-file writes, UTF-8 / binary / size checks, mtime conflicts
@@ -93,6 +94,29 @@ stronger color. The highlight layer stays aligned while typing and scrolling.
 
 The find bar searches only the current tab. It never reads files from disk and
 does not involve the Rust filesystem layer.
+
+## Finding text in the project
+
+`Ctrl/Cmd+Shift+F` opens the **Search** tab (or focuses it if it is already
+open). Type a query and press `Enter` or click **Search**; Rust walks every
+authorized project folder and individual file root and returns the matches in one
+payload. Matching is literal and case-insensitive.
+
+Results are grouped by file, with project-relative paths, line numbers, and the
+matched text highlighted. Clicking a result opens the file in a normal tab and
+selects/scrolls to the match. The Search tab stays open, so you can jump between
+results; clicking a file tab deactivates the Search view, and clicking the Search
+tab brings the same query and results back. Closing the Search tab clears only
+that view.
+
+Search reads saved files from disk. Unsaved editor buffers are not included;
+save the file and search again to pick up edits. Binary, invalid UTF-8, and files
+over 10 MB are skipped, as are `.git`, `node_modules`, `target`, `dist`, and
+`.next` directories. Results stop after 500 matches or 500 files and show a
+truncation notice when a limit is reached.
+
+The Search tab is a UI view, not a document: it is not part of dirty tracking,
+Save, Close All Tabs, or session restore. It does not survive an app restart.
 
 ## Prerequisites
 

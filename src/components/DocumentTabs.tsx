@@ -6,10 +6,12 @@ import {
   Image as ImageIcon,
   Network,
   Plus,
+  Search,
   X,
 } from "lucide-react";
 import type { AppActions } from "../hooks/useAppActions";
 import { useDocumentStore } from "../stores/documentStore";
+import { useSearchStore } from "../stores/searchStore";
 import { isDocumentDirty, type DocumentKind } from "../types";
 
 function iconForKind(kind: DocumentKind) {
@@ -49,8 +51,10 @@ interface DocumentTabsProps {
 export function DocumentTabs({ actions }: DocumentTabsProps) {
   const documents = useDocumentStore((state) => state.documents);
   const activeId = useDocumentStore((state) => state.activeId);
+  const searchOpen = useSearchStore((state) => state.projectSearchOpen);
+  const searchActive = useSearchStore((state) => state.projectSearchActive);
 
-  if (documents.length === 0) return null;
+  if (documents.length === 0 && !searchOpen) return null;
 
   function closeTab(id: string) {
     const index = documents.findIndex((doc) => doc.id === id);
@@ -89,6 +93,28 @@ export function DocumentTabs({ actions }: DocumentTabsProps) {
     if (event.button !== 1) return;
     event.preventDefault();
     closeTab(id);
+  }
+
+  function onSearchTabKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      actions.activateProjectSearch();
+      return;
+    }
+
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+
+    event.preventDefault();
+    if (documents.length === 0) return;
+
+    const next =
+      event.key === "ArrowRight"
+        ? documents[0]
+        : documents[documents.length - 1];
+    actions.activateFile(next.id);
+    window.requestAnimationFrame(() => {
+      document.getElementById(`editor-tab-${next.id}`)?.focus();
+    });
   }
 
   return (
@@ -150,6 +176,46 @@ export function DocumentTabs({ actions }: DocumentTabsProps) {
             </div>
           );
         })}
+
+        {searchOpen ? (
+          <div
+            id="editor-tab-search"
+            role="tab"
+            aria-selected={searchActive}
+            tabIndex={searchActive ? 0 : -1}
+            className={
+              searchActive
+                ? "editor-tab editor-tab--search editor-tab--active"
+                : "editor-tab editor-tab--search"
+            }
+            title="Find in Project"
+            onClick={actions.activateProjectSearch}
+            onAuxClick={(event) => {
+              if (event.button !== 1) return;
+              event.preventDefault();
+              actions.closeProjectSearch();
+            }}
+            onKeyDown={onSearchTabKeyDown}
+          >
+            <Search
+              size={13}
+              className="editor-tab__icon editor-tab__icon--search"
+            />
+            <span className="editor-tab__label">Search</span>
+            <button
+              type="button"
+              className="editor-tab__close"
+              aria-label="Close Search tab"
+              title="Close Search tab"
+              onClick={(event) => {
+                event.stopPropagation();
+                actions.closeProjectSearch();
+              }}
+            >
+              <X size={12} />
+            </button>
+          </div>
+        ) : null}
       </div>
 
       <button

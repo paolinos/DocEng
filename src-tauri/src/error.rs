@@ -3,6 +3,32 @@ use std::fmt;
 use std::io;
 use std::path::Path;
 
+/// One project-search match. `before` + `match` + `after` equals `text`, which
+/// lets the frontend highlight without computing byte/UTF-16 offsets.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchHit {
+    pub path: String,
+    pub name: String,
+    pub line: usize,
+    pub column: usize,
+    pub text: String,
+    pub before: String,
+    #[serde(rename = "match")]
+    pub match_text: String,
+    pub after: String,
+}
+
+/// Payload returned by the project-wide search command.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchInProjectResponse {
+    pub total_matches: usize,
+    pub results: Vec<SearchHit>,
+    pub truncated: bool,
+    pub files_searched: usize,
+}
+
 /// Serializable error shape returned to the React frontend.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

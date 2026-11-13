@@ -202,6 +202,14 @@ export function MenuBar({ actions }: MenuBarProps) {
           disabled: !findOpen,
           action: actions.findPrevious,
         },
+        { id: "edit-sep-1", type: "separator" },
+        {
+          id: "find-in-project",
+          label: "Find in Project",
+          icon: Search,
+          shortcut: formatShortcut("F", { shift: true }),
+          action: actions.openProjectSearch,
+        },
       ],
     },
     view: {

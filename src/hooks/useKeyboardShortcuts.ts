@@ -35,9 +35,12 @@ export function useKeyboardShortcuts(
 
       switch (event.key.toLowerCase()) {
         case "f":
-          if (event.shiftKey) break;
           event.preventDefault();
-          actions.openFind();
+          if (event.shiftKey) {
+            actions.openProjectSearch();
+          } else {
+            actions.openFind();
+          }
           break;
         case "s":
           event.preventDefault();

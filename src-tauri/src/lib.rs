@@ -5,7 +5,8 @@ mod session;
 
 use fs_ops::{
     authorize_new_file, canonicalize_path, list_directory, read_image_file, read_text_file,
-    rename_entry, restore_project_roots, set_project_roots, stat_path, trash_entry, write_text_file,
+    rename_entry, restore_project_roots, search_in_project, set_project_roots, stat_path,
+    trash_entry, write_text_file,
 };
 use path_policy::PathPolicy;
 use session::{session_load, session_save, SessionDb};
@@ -30,6 +31,7 @@ pub fn run() {
             read_text_file,
             rename_entry,
             restore_project_roots,
+            search_in_project,
             session_load,
             session_save,
             set_project_roots,

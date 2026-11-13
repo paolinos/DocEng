@@ -16,10 +16,15 @@ import { DocumentTabs } from "./DocumentTabs";
 import { FindBar } from "./FindBar";
 import { ImagePreview } from "./ImagePreview";
 import { MarkdownPreview } from "./MarkdownPreview";
+import { SearchPanel } from "./SearchPanel";
 import { SwaggerPreview } from "./SwaggerPreview";
 import { isApiSpecFile } from "../lib/apiSpec";
 import { formatShortcut } from "../lib/platform";
-import { findMatches, buildSearchSegments } from "../lib/search";
+import {
+  findMatches,
+  buildSearchSegments,
+  jsOffsetForLineColumn,
+} from "../lib/search";
 import {
   selectActiveDocument,
   useDocumentStore,
@@ -83,6 +88,13 @@ export function EditorPane({ actions }: EditorPaneProps) {
   const closeFind = useSearchStore((state) => state.closeFind);
   const resetFindForDocument = useSearchStore(
     (state) => state.resetForDocument,
+  );
+  const projectSearchActive = useSearchStore(
+    (state) => state.projectSearchActive,
+  );
+  const projectReveal = useSearchStore((state) => state.projectReveal);
+  const clearProjectReveal = useSearchStore(
+    (state) => state.clearProjectReveal,
   );
   const previousDocumentId = useRef<string | null>(null);
 
@@ -187,9 +199,59 @@ export function EditorPane({ actions }: EditorPaneProps) {
     syncHighlightLayer,
   ]);
 
+  useEffect(() => {
+    if (projectReveal === null) return;
+    if (doc === null || doc.path !== projectReveal.path) return;
+
+    if (doc.kind === "image") {
+      clearProjectReveal();
+      return;
+    }
+
+    if (viewMode === "preview") {
+      setViewMode("split");
+      return;
+    }
+
+    const textarea = editorRef.current;
+    if (!textarea) return;
+
+    const start = jsOffsetForLineColumn(
+      doc.content,
+      projectReveal.line,
+      projectReveal.column,
+    );
+    const end = Math.min(
+      doc.content.length,
+      start + projectReveal.match.length,
+    );
+
+    textarea.focus();
+    textarea.setSelectionRange(start, end);
+    scrollTextareaToOffset(textarea, start);
+    syncHighlightLayer();
+    clearProjectReveal();
+  }, [
+    projectReveal,
+    doc,
+    viewMode,
+    setViewMode,
+    clearProjectReveal,
+    syncHighlightLayer,
+  ]);
+
   const dirty = isDocumentDirty(doc);
   const isImage = doc?.kind === "image";
   const isApiSpec = doc ? isApiSpecFile(doc.name, doc.content) : false;
+
+  if (projectSearchActive) {
+    return (
+      <main className="editor" aria-label="Editor">
+        <DocumentTabs actions={actions} />
+        <SearchPanel actions={actions} />
+      </main>
+    );
+  }
 
   return (
     <main className="editor" aria-label="Editor">

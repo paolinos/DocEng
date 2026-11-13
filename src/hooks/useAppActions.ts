@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { join } from "@tauri-apps/api/path";
 import {
   open as openDialog,
@@ -16,6 +16,7 @@ import {
   isDocumentDirty,
 } from "../types";
 import { errorMessage, fileSystem, isAppError } from "../lib/fs";
+import type { SearchHit } from "../lib/fs";
 import { parseProjectFile, serializeProject } from "../lib/projectFile";
 import { findMatches } from "../lib/search";
 import { basename } from "../lib/utils";
@@ -54,6 +55,11 @@ export interface AppActions {
   closeFind: () => void;
   findNext: () => void;
   findPrevious: () => void;
+  openProjectSearch: () => void;
+  activateProjectSearch: () => void;
+  closeProjectSearch: () => void;
+  runProjectSearch: () => Promise<void>;
+  openSearchResult: (hit: SearchHit) => Promise<void>;
   resetLayout: () => void;
   showAbout: () => void;
 }
@@ -193,10 +199,31 @@ function ensureFindableView(): void {
   }
 }
 
+/**
+ * Identity for the current project roots. Results are invalidated when this
+ * changes; sorting keeps the identity stable if root order changes.
+ */
+function currentProjectRootsKey(): string {
+  return useProjectStore
+    .getState()
+    .project.roots.map((root) => `${root.type}:${root.path}`)
+    .sort()
+    .join("\n");
+}
+
 export function useAppActions(): AppActions {
   const push = useToastStore((state) => state.push);
   const workspaceEpoch = useRef(0);
   const openSequence = useRef(0);
+
+  // Project-wide results belong to the roots that produced them.
+  useEffect(() => {
+    const syncRoots = () =>
+      useSearchStore.getState().syncProjectRoots(currentProjectRootsKey());
+
+    syncRoots();
+    return useProjectStore.subscribe(syncRoots);
+  }, []);
 
   return useMemo<AppActions>(() => {
     function reportError(error: unknown): void {
@@ -214,6 +241,7 @@ export function useAppActions(): AppActions {
     async function actionsOpenFile(path: string): Promise<void> {
       const existing = findDocumentByPath(useDocumentStore.getState(), path);
       if (existing) {
+        useSearchStore.getState().deactivateProjectSearch();
         useDocumentStore.getState().activateDocument(existing.id);
         return;
       }
@@ -231,10 +259,12 @@ export function useAppActions(): AppActions {
           const state = useDocumentStore.getState();
           const alreadyOpen = findDocumentByPath(state, image.path);
           if (alreadyOpen) {
+            useSearchStore.getState().deactivateProjectSearch();
             state.activateDocument(alreadyOpen.id);
             return;
           }
 
+          useSearchStore.getState().deactivateProjectSearch();
           state.openDocument(
             {
               path: image.path,
@@ -261,12 +291,14 @@ export function useAppActions(): AppActions {
         const state = useDocumentStore.getState();
         const alreadyOpen = findDocumentByPath(state, file.path);
         if (alreadyOpen) {
+          useSearchStore.getState().deactivateProjectSearch();
           state.activateDocument(alreadyOpen.id);
           return;
         }
 
         const kind = documentKindForPath(file.path);
 
+        useSearchStore.getState().deactivateProjectSearch();
         state.openDocument(
           {
             path: file.path,
@@ -528,6 +560,7 @@ export function useAppActions(): AppActions {
 
       newFile: () => {
         openSequence.current += 1;
+        useSearchStore.getState().deactivateProjectSearch();
         useDocumentStore.getState().openDocument({
           path: null,
           name: nextUntitledName(),
@@ -837,10 +870,15 @@ export function useAppActions(): AppActions {
         push("All files closed.", "info");
       },
 
-      activateFile: (id) => useDocumentStore.getState().activateDocument(id),
+      activateFile: (id) => {
+        useSearchStore.getState().deactivateProjectSearch();
+        useDocumentStore.getState().activateDocument(id);
+      },
 
-      cycleTab: (direction) =>
-        useDocumentStore.getState().cycleDocument(direction),
+      cycleTab: (direction) => {
+        useSearchStore.getState().deactivateProjectSearch();
+        useDocumentStore.getState().cycleDocument(direction);
+      },
 
       toggleSidebar: () => useUiStore.getState().toggleSidebar(),
 
@@ -853,6 +891,7 @@ export function useAppActions(): AppActions {
           return;
         }
 
+        useSearchStore.getState().deactivateProjectSearch();
         ensureFindableView();
         const selected = selectedEditorText();
         useSearchStore
@@ -890,6 +929,71 @@ export function useAppActions(): AppActions {
           search.caseSensitive,
         ).length;
         search.previousMatch(matchCount);
+      },
+
+      openProjectSearch: () => {
+        if (useProjectStore.getState().project.roots.length === 0) {
+          push(
+            "Add a folder or file before searching the project.",
+            "warning",
+          );
+          return;
+        }
+
+        useSearchStore.getState().openProjectSearch();
+      },
+
+      activateProjectSearch: () =>
+        useSearchStore.getState().activateProjectSearch(),
+
+      closeProjectSearch: () => useSearchStore.getState().closeProjectSearch(),
+
+      runProjectSearch: async () => {
+        const search = useSearchStore.getState();
+        const query = search.projectQuery;
+
+        if (query.length === 0) {
+          push("Enter text to search for.", "warning");
+          return;
+        }
+
+        if (useProjectStore.getState().project.roots.length === 0) {
+          push(
+            "Add a folder or file before searching the project.",
+            "warning",
+          );
+          return;
+        }
+
+        const requestId = search.startProjectSearch(currentProjectRootsKey());
+
+        try {
+          const response = await fileSystem.searchInProject(query);
+          useSearchStore.getState().finishProjectSearch(requestId, response);
+        } catch (error) {
+          useSearchStore
+            .getState()
+            .failProjectSearch(requestId, errorMessage(error));
+        }
+      },
+
+      openSearchResult: async (hit: SearchHit) => {
+        await actionsOpenFile(hit.path);
+
+        const opened = findDocumentByPath(
+          useDocumentStore.getState(),
+          hit.path,
+        );
+
+        if (!opened) return;
+
+        ensureFindableView();
+        useSearchStore.getState().setProjectReveal({
+          path: hit.path,
+          line: hit.line,
+          column: hit.column,
+          match: hit.match,
+        });
       },
 
       resetLayout: () => {

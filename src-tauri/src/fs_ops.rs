@@ -1,7 +1,8 @@
-use crate::error::{AppError, AppResult};
+use crate::error::{AppError, AppResult, SearchHit, SearchInProjectResponse};
 use crate::path_policy::PathPolicy;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use serde::Serialize;
+use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
@@ -12,6 +13,13 @@ use tauri::State;
 const MAX_TEXT_FILE_BYTES: u64 = 10 * 1024 * 1024;
 const MAX_IMAGE_FILE_BYTES: u64 = 20 * 1024 * 1024;
 const BINARY_SAMPLE_BYTES: usize = 8 * 1024;
+
+const SEARCH_MAX_HITS: usize = 500;
+const SEARCH_MAX_FILES: usize = 500;
+const SEARCH_SNIPPET_MAX_BYTES: usize = 400;
+const SEARCH_SNIPPET_CONTEXT_BYTES: usize = 120;
+const SEARCH_IGNORED_DIRECTORIES: [&str; 5] =
+    [".git", "node_modules", "target", "dist", ".next"];
 
 const PNG_MAGIC: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 const JPEG_MAGIC: [u8; 3] = [0xFF, 0xD8, 0xFF];
@@ -233,6 +241,17 @@ pub fn read_image_file(path: String, policy: State<'_, PathPolicy>) -> AppResult
     read_image_file_impl(&canonical)
 }
 
+/// Searches every authorized project root for a literal, case-insensitive
+/// substring. Runs on a separate thread because it performs filesystem I/O.
+#[tauri::command(async)]
+pub fn search_in_project(
+    query: String,
+    policy: State<'_, PathPolicy>,
+) -> AppResult<SearchInProjectResponse> {
+    let roots = policy.roots();
+    search_in_project_impl(&roots, &query)
+}
+
 #[tauri::command]
 pub fn write_text_file(
     path: String,
@@ -450,6 +469,311 @@ fn read_image_file_impl(path: &Path) -> AppResult<ImageFileInfo> {
         size: metadata.len(),
         modified_ms: modified_ms(&metadata),
     })
+}
+
+#[derive(Default)]
+struct SearchAccumulator {
+    results: Vec<SearchHit>,
+    files_searched: usize,
+    truncated: bool,
+}
+
+fn search_in_project_impl(
+    roots: &[PathBuf],
+    query: &str,
+) -> AppResult<SearchInProjectResponse> {
+    if query.is_empty() {
+        return Err(AppError::new(
+            "invalid_input",
+            "Enter text to search for before searching the project.",
+        ));
+    }
+
+    let roots = dedupe_roots(roots);
+    let query_lower = query.to_lowercase();
+    let mut accumulator = SearchAccumulator::default();
+    let mut seen_files = HashSet::new();
+
+    for root in &roots {
+        if accumulator.truncated {
+            break;
+        }
+
+        match fs::metadata(root) {
+            Ok(metadata) if metadata.is_dir() => {
+                search_directory(
+                    root,
+                    &roots,
+                    &query_lower,
+                    &mut accumulator,
+                    &mut seen_files,
+                );
+            }
+            Ok(metadata) if metadata.is_file() => {
+                search_file(root, &query_lower, &mut accumulator, &mut seen_files);
+            }
+            _ => {}
+        }
+    }
+
+    Ok(SearchInProjectResponse {
+        total_matches: accumulator.results.len(),
+        results: accumulator.results,
+        truncated: accumulator.truncated,
+        files_searched: accumulator.files_searched,
+    })
+}
+
+/// Removes roots that are already covered by a shorter overlapping root so a
+/// file under two project roots is only walked once.
+fn dedupe_roots(roots: &[PathBuf]) -> Vec<PathBuf> {
+    let mut sorted = roots.to_vec();
+    sorted.sort_by_key(|path| path.components().count());
+
+    let mut kept: Vec<PathBuf> = Vec::new();
+    for root in sorted {
+        if kept
+            .iter()
+            .any(|existing| root == *existing || root.starts_with(existing))
+        {
+            continue;
+        }
+        kept.push(root);
+    }
+
+    kept
+}
+
+fn search_directory(
+    directory: &Path,
+    roots: &[PathBuf],
+    query_lower: &str,
+    accumulator: &mut SearchAccumulator,
+    seen_files: &mut HashSet<PathBuf>,
+) {
+    let entries = match fs::read_dir(directory) {
+        Ok(entries) => entries,
+        Err(_) => return,
+    };
+
+    for entry in entries.flatten() {
+        if accumulator.truncated {
+            return;
+        }
+
+        let path = entry.path();
+        let file_type = match entry.file_type() {
+            Ok(file_type) => file_type,
+            Err(_) => continue,
+        };
+
+        if file_type.is_symlink() {
+            search_symlinked_file(&path, roots, query_lower, accumulator, seen_files);
+            continue;
+        }
+
+        if file_type.is_dir() {
+            if is_ignored_directory(&path) {
+                continue;
+            }
+            search_directory(&path, roots, query_lower, accumulator, seen_files);
+        } else if file_type.is_file() {
+            search_file(&path, query_lower, accumulator, seen_files);
+        }
+    }
+}
+
+fn is_ignored_directory(path: &Path) -> bool {
+    path.file_name()
+        .and_then(OsStr::to_str)
+        .is_some_and(|name| SEARCH_IGNORED_DIRECTORIES.contains(&name))
+}
+
+/// Symlinked directories are never followed. A symlinked file is allowed only
+/// when its canonical target still lives inside one of the authorized roots.
+fn search_symlinked_file(
+    path: &Path,
+    roots: &[PathBuf],
+    query_lower: &str,
+    accumulator: &mut SearchAccumulator,
+    seen_files: &mut HashSet<PathBuf>,
+) {
+    let metadata = match fs::metadata(path) {
+        Ok(metadata) => metadata,
+        Err(_) => return,
+    };
+
+    if !metadata.is_file() {
+        return;
+    }
+
+    let canonical = match path.canonicalize() {
+        Ok(canonical) => canonical,
+        Err(_) => return,
+    };
+
+    if roots.iter().any(|root| canonical.starts_with(root)) {
+        search_file(&canonical, query_lower, accumulator, seen_files);
+    }
+}
+
+fn search_file(
+    path: &Path,
+    query_lower: &str,
+    accumulator: &mut SearchAccumulator,
+    seen_files: &mut HashSet<PathBuf>,
+) {
+    if accumulator.truncated {
+        return;
+    }
+
+    let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    if !seen_files.insert(canonical) {
+        return;
+    }
+
+    let metadata = match fs::metadata(path) {
+        Ok(metadata) if metadata.is_file() => metadata,
+        _ => return,
+    };
+
+    if metadata.len() > MAX_TEXT_FILE_BYTES {
+        return;
+    }
+
+    let mut file = match File::open(path) {
+        Ok(file) => file,
+        Err(_) => return,
+    };
+    let mut bytes = Vec::with_capacity(metadata.len() as usize + 1);
+    let mut limited = Read::take(&mut file, MAX_TEXT_FILE_BYTES + 1);
+    if limited.read_to_end(&mut bytes).is_err() {
+        return;
+    }
+
+    if bytes.len() as u64 > MAX_TEXT_FILE_BYTES {
+        return;
+    }
+
+    if bytes
+        .iter()
+        .take(BINARY_SAMPLE_BYTES)
+        .any(|byte| *byte == 0)
+    {
+        return;
+    }
+
+    let content = match String::from_utf8(bytes) {
+        Ok(content) => content,
+        Err(_) => return,
+    };
+
+    if accumulator.files_searched >= SEARCH_MAX_FILES {
+        accumulator.truncated = true;
+        return;
+    }
+    accumulator.files_searched += 1;
+
+    for (line_index, line) in content.lines().enumerate() {
+        let (lower, offsets) = lowercase_with_offsets(line);
+
+        for (lower_start, matched) in lower.match_indices(query_lower) {
+            if accumulator.results.len() >= SEARCH_MAX_HITS {
+                accumulator.truncated = true;
+                return;
+            }
+
+            let start = offsets[lower_start];
+            let end = offsets[lower_start + matched.len()];
+
+            // Case folding can expand a single character into several bytes.
+            // Skip partial matches that would produce an empty original slice.
+            if start >= end {
+                continue;
+            }
+
+            accumulator.results.push(build_search_hit(
+                path,
+                line,
+                line_index + 1,
+                start,
+                end,
+            ));
+        }
+    }
+}
+
+/// Lowercases `value` while mapping every byte of the lowercased string back to
+/// the byte offset of its source character. This keeps offsets valid for
+/// Unicode case folding that changes UTF-8 length.
+fn lowercase_with_offsets(value: &str) -> (String, Vec<usize>) {
+    let mut lower = String::with_capacity(value.len());
+    let mut offsets = Vec::with_capacity(value.len() + 1);
+    let mut buffer = [0_u8; 4];
+
+    for (index, character) in value.char_indices() {
+        for folded in character.to_lowercase() {
+            let encoded = folded.encode_utf8(&mut buffer);
+            for _ in 0..encoded.len() {
+                offsets.push(index);
+            }
+            lower.push(folded);
+        }
+    }
+
+    offsets.push(value.len());
+    (lower, offsets)
+}
+
+fn build_search_hit(
+    path: &Path,
+    line: &str,
+    line_number: usize,
+    start: usize,
+    end: usize,
+) -> SearchHit {
+    let (before, matched, after) = snippet_parts(line, start, end);
+
+    SearchHit {
+        path: path.to_string_lossy().into_owned(),
+        name: file_name(path),
+        line: line_number,
+        column: start + 1,
+        text: format!("{before}{matched}{after}"),
+        before: before.to_string(),
+        match_text: matched.to_string(),
+        after: after.to_string(),
+    }
+}
+
+/// Returns a bounded window around the match so very long lines do not create
+/// a large payload. All cuts happen on UTF-8 character boundaries.
+fn snippet_parts(line: &str, start: usize, end: usize) -> (&str, &str, &str) {
+    if line.len() <= SEARCH_SNIPPET_MAX_BYTES {
+        return (&line[..start], &line[start..end], &line[end..]);
+    }
+
+    let before_start = floor_char_boundary(line, start.saturating_sub(SEARCH_SNIPPET_CONTEXT_BYTES));
+    let after_end = ceil_char_boundary(
+        line,
+        end.saturating_add(SEARCH_SNIPPET_CONTEXT_BYTES).min(line.len()),
+    );
+
+    (&line[before_start..start], &line[start..end], &line[end..after_end])
+}
+
+fn floor_char_boundary(value: &str, mut index: usize) -> usize {
+    while index > 0 && !value.is_char_boundary(index) {
+        index -= 1;
+    }
+    index
+}
+
+fn ceil_char_boundary(value: &str, mut index: usize) -> usize {
+    while index < value.len() && !value.is_char_boundary(index) {
+        index += 1;
+    }
+    index
 }
 
 fn write_text_file_impl(
@@ -820,5 +1144,232 @@ mod tests {
         assert!(result.roots.is_empty());
         assert_eq!(result.missing, vec!["relative/folder"]);
         assert!(policy.roots().is_empty());
+    }
+
+    fn canonical(path: &Path) -> PathBuf {
+        path.canonicalize().expect("canonical path")
+    }
+
+    #[test]
+    fn search_rejects_an_empty_query() {
+        let dir = tempdir().expect("temp dir");
+        let root = canonical(dir.path());
+
+        let error = search_in_project_impl(&[root], "").expect_err("empty query must fail");
+        assert_eq!(error.code, "invalid_input");
+    }
+
+    #[test]
+    fn search_walks_nested_folders_and_reports_hits() {
+        let dir = tempdir().expect("temp dir");
+        let root = canonical(dir.path());
+        let nested = root.join("notes").join("daily");
+        fs::create_dir_all(&nested).expect("create nested dirs");
+        fs::write(root.join("top.md"), "one NEEDLE here").expect("write fixture");
+        fs::write(nested.join("note.md"), "first\nneedle twice needle\n")
+            .expect("write fixture");
+
+        let response = search_in_project_impl(&[root.clone()], "needle").expect("search");
+
+        assert_eq!(response.total_matches, 3);
+        assert!(!response.truncated);
+        assert_eq!(response.files_searched, 2);
+
+        // `read_dir` order is OS-dependent, so look hits up by file name.
+        let top = response
+            .results
+            .iter()
+            .find(|hit| hit.name == "top.md")
+            .expect("top.md hit");
+        assert_eq!(top.line, 1);
+        assert_eq!(top.text, "one NEEDLE here");
+        assert_eq!(top.before, "one ");
+        assert_eq!(top.match_text, "NEEDLE");
+        assert_eq!(top.after, " here");
+
+        let nested: Vec<_> = response
+            .results
+            .iter()
+            .filter(|hit| hit.name == "note.md")
+            .collect();
+        assert_eq!(nested.len(), 2);
+        assert_eq!(nested[0].line, 2);
+        assert_eq!(nested[0].column, 1);
+        assert_eq!(nested[1].line, 2);
+        assert_eq!(nested[1].column, 14);
+    }
+
+    #[test]
+    fn search_skips_ignored_directories() {
+        let dir = tempdir().expect("temp dir");
+        let root = canonical(dir.path());
+
+        for ignored in SEARCH_IGNORED_DIRECTORIES {
+            let folder = root.join(ignored);
+            fs::create_dir_all(&folder).expect("create ignored dir");
+            fs::write(folder.join("hit.txt"), "needle").expect("write ignored fixture");
+        }
+
+        fs::create_dir_all(root.join("src")).expect("create source dir");
+        fs::write(root.join("src").join("main.rs"), "needle").expect("write fixture");
+
+        let response = search_in_project_impl(&[root], "needle").expect("search");
+
+        assert_eq!(response.total_matches, 1);
+        assert_eq!(response.files_searched, 1);
+    }
+
+    #[test]
+    fn search_accepts_an_individual_file_root() {
+        let dir = tempdir().expect("temp dir");
+        let file = canonical(dir.path()).join("todo.md");
+        fs::write(&file, "a needle").expect("write fixture");
+
+        let response = search_in_project_impl(&[file], "needle").expect("search");
+
+        assert_eq!(response.total_matches, 1);
+        assert_eq!(response.files_searched, 1);
+    }
+
+    #[test]
+    fn search_dedupes_overlapping_roots() {
+        let dir = tempdir().expect("temp dir");
+        let root = canonical(dir.path());
+        let nested = root.join("nested");
+        fs::create_dir(&nested).expect("create nested dir");
+        fs::write(nested.join("note.md"), "needle").expect("write fixture");
+
+        let response =
+            search_in_project_impl(&[root, nested], "needle").expect("search");
+
+        assert_eq!(response.total_matches, 1);
+        assert_eq!(response.files_searched, 1);
+    }
+
+    #[test]
+    fn search_handles_crlf_line_numbers() {
+        let dir = tempdir().expect("temp dir");
+        let root = canonical(dir.path());
+        fs::write(root.join("windows.txt"), "first\r\nneedle here\r\n").expect("write fixture");
+
+        let response = search_in_project_impl(&[root], "needle").expect("search");
+
+        assert_eq!(response.results.len(), 1);
+        assert_eq!(response.results[0].line, 2);
+        assert_eq!(response.results[0].column, 1);
+        assert_eq!(response.results[0].text, "needle here");
+    }
+
+    #[test]
+    fn search_is_case_insensitive_and_unicode_safe() {
+        let dir = tempdir().expect("temp dir");
+        let root = canonical(dir.path());
+        fs::write(root.join("unicode.txt"), "Café CAFÉ").expect("write fixture");
+
+        let response = search_in_project_impl(&[root], "café").expect("search");
+
+        assert_eq!(response.results.len(), 2);
+        assert_eq!(response.results[0].match_text, "Café");
+        assert_eq!(response.results[1].match_text, "CAFÉ");
+        assert_eq!(response.results[0].column, 1);
+        assert_eq!(response.results[1].column, 7);
+        assert_eq!(
+            format!(
+                "{}{}{}",
+                response.results[1].before,
+                response.results[1].match_text,
+                response.results[1].after
+            ),
+            response.results[1].text
+        );
+    }
+
+    #[test]
+    fn search_skips_binary_invalid_utf8_and_oversized_files() {
+        let dir = tempdir().expect("temp dir");
+        let root = canonical(dir.path());
+
+        fs::write(root.join("binary.bin"), [0_u8, 1, 2, 3]).expect("write binary fixture");
+        fs::write(root.join("invalid.txt"), [0xFF_u8, 0xFE, 0x41]).expect("write invalid fixture");
+        let oversized = File::create(root.join("huge.txt")).expect("create oversized fixture");
+        oversized
+            .set_len(MAX_TEXT_FILE_BYTES + 1)
+            .expect("size oversized fixture");
+        fs::write(root.join("good.txt"), "needle").expect("write good fixture");
+
+        let response = search_in_project_impl(&[root], "needle").expect("search");
+
+        assert_eq!(response.total_matches, 1);
+        assert_eq!(response.files_searched, 1);
+        assert_eq!(response.results[0].name, "good.txt");
+    }
+
+    #[test]
+    fn search_truncates_after_the_hit_limit() {
+        let dir = tempdir().expect("temp dir");
+        let root = canonical(dir.path());
+        let content = "needle\n".repeat(SEARCH_MAX_HITS + 1);
+        fs::write(root.join("many.txt"), content).expect("write fixture");
+
+        let response = search_in_project_impl(&[root], "needle").expect("search");
+
+        assert_eq!(response.results.len(), SEARCH_MAX_HITS);
+        assert_eq!(response.total_matches, SEARCH_MAX_HITS);
+        assert!(response.truncated);
+        assert_eq!(response.files_searched, 1);
+    }
+
+    #[test]
+    fn search_truncates_after_the_file_limit() {
+        let dir = tempdir().expect("temp dir");
+        let root = canonical(dir.path());
+
+        for index in 0..=SEARCH_MAX_FILES {
+            fs::write(root.join(format!("file-{index}.txt")), "plain").expect("write fixture");
+        }
+
+        let response = search_in_project_impl(&[root], "needle").expect("search");
+
+        assert!(response.results.is_empty());
+        assert_eq!(response.files_searched, SEARCH_MAX_FILES);
+        assert!(response.truncated);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn search_skips_symlinked_directories_and_outside_symlinks() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempdir().expect("temp dir");
+        let root = canonical(dir.path());
+        let outside = tempdir().expect("outside dir");
+        let outside = canonical(outside.path());
+        fs::write(outside.join("secret.txt"), "needle").expect("write outside fixture");
+        fs::write(root.join("real.txt"), "needle").expect("write real fixture");
+
+        symlink(&outside, root.join("linked-folder")).expect("symlink dir");
+        symlink(outside.join("secret.txt"), root.join("escape.txt")).expect("symlink file");
+
+        let response = search_in_project_impl(&[root], "needle").expect("search");
+
+        assert_eq!(response.total_matches, 1);
+        assert_eq!(response.files_searched, 1);
+        assert!(response.results[0].path.ends_with("real.txt"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn search_follows_in_root_symlinked_files_once() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempdir().expect("temp dir");
+        let root = canonical(dir.path());
+        fs::write(root.join("real.txt"), "needle").expect("write fixture");
+        symlink(root.join("real.txt"), root.join("alias.txt")).expect("symlink file");
+
+        let response = search_in_project_impl(&[root], "needle").expect("search");
+
+        assert_eq!(response.total_matches, 1);
+        assert_eq!(response.files_searched, 1);
     }
 }
