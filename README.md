@@ -148,13 +148,13 @@ sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev \
 
 ```bash
 npm install
-npm run tauri dev
+make run
 ```
 
 Frontend-only checks:
 
 ```bash
-npm run typecheck
+make typecheck
 npm run build
 ```
 
@@ -163,6 +163,23 @@ Backend tests:
 ```bash
 cd src-tauri
 cargo test
+```
+
+Or run both frontend and backend tests:
+
+```bash
+make test
+```
+
+## Building release bundles
+
+Use the provided Makefile targets. Each platform target must be run on the
+matching host operating system:
+
+```bash
+make build-mac   # macOS universal binary (x86_64 + arm64)
+make build-win   # Windows x64 installer
+make build-linux # Debian x64 package
 ```
 
 ## Architecture

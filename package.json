@@ -7,9 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "test": "jest",
-    "typecheck": "tsc --noEmit",
-    "tauri:run": "tauri dev",
-    "tauri:build": "tauri build"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@asyncapi/react-component": "^3.2.2",
