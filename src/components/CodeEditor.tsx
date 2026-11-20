@@ -30,7 +30,13 @@ import {
   indentUnit,
   syntaxHighlighting,
 } from "@codemirror/language";
-import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import {
+  defaultKeymap,
+  history,
+  historyKeymap,
+  indentLess,
+  insertTab,
+} from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { yaml } from "@codemirror/lang-yaml";
 import { languages } from "@codemirror/language-data";
@@ -225,7 +231,17 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(
           syntaxHighlighting(docEngHighlightStyle),
           EditorView.lineWrapping,
           searchMatchField,
-          keymap.of([...defaultKeymap, ...historyKeymap]),
+          // CodeMirror's defaultKeymap deliberately leaves Tab unbound, which
+          // lets the browser move focus out of the editor. Bind it explicitly
+          // so Tab inserts a tab at the cursor (wherever it is in the text),
+          // while Shift+Tab dedents the current line. Ctrl/Cmd+Tab has no
+          // matching binding here, so it still bubbles to the global shortcut
+          // handler that cycles open document tabs.
+          keymap.of([
+            { key: "Tab", run: insertTab, shift: indentLess },
+            ...defaultKeymap,
+            ...historyKeymap,
+          ]),
           EditorView.updateListener.of((update) => {
             if (!update.docChanged) return;
             onChangeRef.current(update.state.doc.toString());
