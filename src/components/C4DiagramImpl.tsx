@@ -17,7 +17,11 @@ export default function C4DiagramImpl({
   compact,
 }: C4DiagramImplProps) {
   return (
-    <LikeC4ModelProvider likec4model={model}>
+    <LikeC4ModelProvider
+      likec4model={
+        model as unknown as Parameters<typeof LikeC4ModelProvider>[0]["likec4model"]
+      }
+    >
       <LikeC4View
         viewId={viewId}
         className={

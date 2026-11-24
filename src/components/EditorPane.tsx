@@ -409,10 +409,10 @@ export function EditorPane({ actions }: EditorPaneProps) {
                   <kbd>{formatShortcut("B")}</kbd> toggle sidebar
                 </span>
                 <span>
-                  <kbd>{formatShortcut("N", { alt: true })}</kbd> new file
+                  <kbd>{formatShortcut("N")}</kbd> new file
                 </span>
                 <span>
-                  <kbd>{formatShortcut("N")}</kbd> new project
+                  <kbd>{formatShortcut("N", { shift: true })}</kbd> new project
                 </span>
                 <span>
                   <kbd>{formatShortcut("S")}</kbd> save file
