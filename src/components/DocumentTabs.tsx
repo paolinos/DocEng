@@ -56,12 +56,14 @@ export function DocumentTabs({ actions }: DocumentTabsProps) {
 
   if (documents.length === 0 && !searchOpen) return null;
 
-  function closeTab(id: string) {
+  async function closeTab(id: string) {
     const index = documents.findIndex((doc) => doc.id === id);
-    actions.closeFile(id);
+    await actions.closeFile(id);
 
     window.requestAnimationFrame(() => {
       const remaining = useDocumentStore.getState().documents;
+      // The user cancelled the discard prompt, so the tab is still open.
+      if (remaining.some((doc) => doc.id === id)) return;
       if (remaining.length === 0) return;
 
       const next = remaining[Math.min(index, remaining.length - 1)];

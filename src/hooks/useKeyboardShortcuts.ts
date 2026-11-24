@@ -65,7 +65,7 @@ export function useKeyboardShortcuts(
           break;
         case "w":
           event.preventDefault();
-          actions.closeFile();
+          void actions.closeFile();
           break;
         case "n":
           event.preventDefault();

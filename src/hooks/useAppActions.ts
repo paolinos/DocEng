@@ -47,8 +47,8 @@ export interface AppActions {
   trashPath: (path: string, isFolder: boolean) => Promise<void>;
   openFile: (path: string) => Promise<void>;
   saveFile: () => Promise<void>;
-  closeFile: (id?: string) => void;
-  closeAllFiles: () => void;
+  closeFile: (id?: string) => Promise<void>;
+  closeAllFiles: () => Promise<void>;
   activateFile: (id: string) => void;
   cycleTab: (direction: 1 | -1) => void;
   toggleSidebar: () => void;
@@ -849,7 +849,7 @@ export function useAppActions(): AppActions {
         }
       },
 
-      closeFile: (id?: string) => {
+      closeFile: async (id?: string) => {
         const state = useDocumentStore.getState();
         const target = id
           ? (state.documents.find((doc) => doc.id === id) ?? null)
@@ -859,7 +859,12 @@ export function useAppActions(): AppActions {
 
         if (
           isDocumentDirty(target) &&
-          !window.confirm(`Discard unsaved changes to "${target.name}"?`)
+          !(await useConfirmStore.getState().requestConfirm({
+            title: "Close tab?",
+            message: `Closing "${target.name}" will discard its unsaved changes.`,
+            confirmLabel: "Yes, discard",
+            cancelLabel: "No",
+          }))
         ) {
           return;
         }
@@ -868,7 +873,7 @@ export function useAppActions(): AppActions {
         push(`Closed "${target.name}".`, "info");
       },
 
-      closeAllFiles: () => {
+      closeAllFiles: async () => {
         const dirtyDocuments = selectDirtyDocuments(useDocumentStore.getState());
         if (dirtyDocuments.length === 0) {
           if (useDocumentStore.getState().documents.length === 0) return;
@@ -877,15 +882,19 @@ export function useAppActions(): AppActions {
           return;
         }
 
-        const label =
+        const detail =
           dirtyDocuments.length === 1
-            ? `"${dirtyDocuments[0].name}"`
-            : `${dirtyDocuments.length} files`;
+            ? `“${dirtyDocuments[0].name}” has unsaved changes.`
+            : `${dirtyDocuments.length} open files have unsaved changes.`;
 
         if (
-          !window.confirm(
-            `Discard unsaved changes to ${label} and close all files?`,
-          )
+          !(await useConfirmStore.getState().requestConfirm({
+            title: "Close all tabs?",
+            message: "Closing all tabs will discard the unsaved changes.",
+            detail,
+            confirmLabel: "Yes, discard",
+            cancelLabel: "No",
+          }))
         ) {
           return;
         }
