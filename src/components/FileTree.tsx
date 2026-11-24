@@ -4,13 +4,16 @@ import {
   ChevronRight,
   File,
   FileCode2,
+  FilePlus,
   FileText,
   Folder,
   FolderOpen,
+  FolderPlus,
   Image as ImageIcon,
   Network,
   X,
 } from "lucide-react";
+import { dirname } from "@tauri-apps/api/path";
 import type { PathInfo } from "../lib/fs";
 import { errorMessage, fileSystem } from "../lib/fs";
 import { basename } from "../lib/utils";
@@ -62,6 +65,8 @@ interface FileTreeProps {
   onRemoveRoot: (rootId: string) => void;
   onRenamePath: (path: string, newName: string, isFolder: boolean) => Promise<void>;
   onTrashPath: (path: string, isFolder: boolean) => Promise<void>;
+  onCreateFile: (parentPath: string, name: string) => Promise<void>;
+  onCreateFolder: (parentPath: string, name: string) => Promise<void>;
 }
 
 interface RemoveConfirmation {
@@ -260,6 +265,8 @@ export function FileTree({
   onRemoveRoot,
   onRenamePath,
   onTrashPath,
+  onCreateFile,
+  onCreateFolder,
 }: FileTreeProps) {
   const revision = useProjectStore((state) => state.explorerRevision);
   const [confirmation, setConfirmation] = useState<RemoveConfirmation | null>(null);
@@ -267,6 +274,11 @@ export function FileTree({
   const [renameTarget, setRenameTarget] = useState<TreeEntry | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<TreeEntry | null>(null);
+  const [createTarget, setCreateTarget] = useState<{
+    entry: TreeEntry;
+    type: "file" | "folder";
+  } | null>(null);
+  const [createValue, setCreateValue] = useState("");
   const documents = useDocumentStore((state) => state.documents);
 
   const isWithinRoot = (path: string, rootPath: string) =>
@@ -330,6 +342,22 @@ export function FileTree({
     await onTrashPath(entry.path, entry.isDir);
   }
 
+  async function confirmCreate() {
+    if (!createTarget) return;
+    const { entry, type } = createTarget;
+    const name = createValue.trim();
+    setCreateTarget(null);
+    setCreateValue("");
+
+    const parentPath = entry.isDir ? entry.path : await dirname(entry.path);
+
+    if (type === "file") {
+      await onCreateFile(parentPath, name);
+    } else {
+      await onCreateFolder(parentPath, name);
+    }
+  }
+
   return (
     <>
       <ul className="tree__list" role="tree" aria-label="Project files">
@@ -369,6 +397,31 @@ export function FileTree({
               type="button"
               role="menuitem"
               onClick={() => {
+                setCreateValue("");
+                setCreateTarget({ entry: menu.entry, type: "file" });
+                setMenu(null);
+              }}
+            >
+              <FilePlus size={14} />
+              New File…
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setCreateValue("");
+                setCreateTarget({ entry: menu.entry, type: "folder" });
+                setMenu(null);
+              }}
+            >
+              <FolderPlus size={14} />
+              New Folder…
+            </button>
+            <div className="tree-context-menu__separator" role="separator" />
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
                 setRenameValue(menu.entry.name);
                 setRenameTarget(menu.entry);
                 setMenu(null);
@@ -388,16 +441,19 @@ export function FileTree({
               Move to Trash…
             </button>
             {menu.root ? (
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  requestRemove(menu.root!);
-                  setMenu(null);
-                }}
-              >
-                Remove from project…
-              </button>
+              <>
+                <div className="tree-context-menu__separator" role="separator" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    requestRemove(menu.root!);
+                    setMenu(null);
+                  }}
+                >
+                  Remove from project…
+                </button>
+              </>
             ) : null}
           </div>
         </>
@@ -438,6 +494,40 @@ export function FileTree({
             <div className="confirm-dialog__actions">
               <button type="button" onClick={() => setDeleteTarget(null)}>Cancel</button>
               <button type="button" className="confirm-dialog__remove" onClick={() => void confirmTrash()}>Move to Trash</button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+      {createTarget ? (
+        <div className="confirm-backdrop">
+          <section
+            className="confirm-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="create-title"
+          >
+            <h2 id="create-title">
+              {createTarget.type === "file" ? "New File" : "New Folder"}
+            </h2>
+            <label className="tree-rename-label">
+              Name
+              <input
+                autoFocus
+                value={createValue}
+                onChange={(event) => setCreateValue(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") void confirmCreate();
+                  if (event.key === "Escape") setCreateTarget(null);
+                }}
+              />
+            </label>
+            <div className="confirm-dialog__actions">
+              <button type="button" onClick={() => setCreateTarget(null)}>
+                Cancel
+              </button>
+              <button type="button" onClick={() => void confirmCreate()}>
+                Create
+              </button>
             </div>
           </section>
         </div>

@@ -68,6 +68,8 @@ export function Sidebar({ actions }: SidebarProps) {
               onRemoveRoot={actions.removeRoot}
               onRenamePath={actions.renamePath}
               onTrashPath={actions.trashPath}
+              onCreateFile={actions.createFile}
+              onCreateFolder={actions.createFolder}
             />
           </div>
         ) : (

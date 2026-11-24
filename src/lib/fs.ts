@@ -149,6 +149,14 @@ export const fileSystem = {
     });
   },
 
+  createFile(path: string): Promise<PathInfo> {
+    return invoke<PathInfo>("create_file", { path });
+  },
+
+  createFolder(path: string): Promise<PathInfo> {
+    return invoke<PathInfo>("create_folder", { path });
+  },
+
   canonicalizePath(path: string): Promise<string> {
     return invoke<string>("canonicalize_path", { path });
   },

@@ -147,6 +147,55 @@ pub fn canonicalize_path(path: String, policy: State<'_, PathPolicy>) -> AppResu
     Ok(canonical.to_string_lossy().into_owned())
 }
 
+#[tauri::command]
+pub fn create_file(path: String, policy: State<'_, PathPolicy>) -> AppResult<PathInfo> {
+    let canonical = policy.allow(Path::new(&path))?;
+    create_file_impl(&canonical)
+}
+
+fn create_file_impl(path: &Path) -> AppResult<PathInfo> {
+    if path.exists() {
+        return Err(
+            AppError::new("already_exists", "An item with that name already exists.")
+                .with_path(path.display().to_string()),
+        );
+    }
+
+    let parent = path.parent().filter(|parent| !parent.as_os_str().is_empty()).ok_or_else(|| {
+        AppError::new("invalid_input", "Path has no parent directory.")
+            .with_path(path.display().to_string())
+    })?;
+    if !parent.is_dir() {
+        return Err(
+            AppError::new("parent_missing", "The parent directory does not exist.")
+                .with_path(parent.display().to_string()),
+        );
+    }
+
+    File::create(path).map_err(|error| AppError::io(path, error))?;
+    let metadata = fs::metadata(path).map_err(|error| AppError::io(path, error))?;
+    Ok(PathInfo::from_metadata(path.to_path_buf(), &metadata, false))
+}
+
+#[tauri::command]
+pub fn create_folder(path: String, policy: State<'_, PathPolicy>) -> AppResult<PathInfo> {
+    let canonical = policy.allow(Path::new(&path))?;
+    create_folder_impl(&canonical)
+}
+
+fn create_folder_impl(path: &Path) -> AppResult<PathInfo> {
+    if path.exists() {
+        return Err(
+            AppError::new("already_exists", "An item with that name already exists.")
+                .with_path(path.display().to_string()),
+        );
+    }
+
+    fs::create_dir_all(path).map_err(|error| AppError::io(path, error))?;
+    let metadata = fs::metadata(path).map_err(|error| AppError::io(path, error))?;
+    Ok(PathInfo::from_metadata(path.to_path_buf(), &metadata, false))
+}
+
 /// Authorizes the folders and files that make up the open project.
 ///
 /// This is the bridge between the project state in React and the canonical
@@ -1371,5 +1420,41 @@ mod tests {
 
         assert_eq!(response.total_matches, 1);
         assert_eq!(response.files_searched, 1);
+    }
+
+    #[test]
+    fn creates_a_new_file() {
+        let dir = tempdir().expect("temp dir");
+        let path = dir.path().join("draft.md");
+
+        let info = create_file_impl(&path).expect("create file");
+
+        assert!(info.is_file);
+        assert!(!info.is_dir);
+        assert_eq!(info.name, "draft.md");
+        assert!(path.exists());
+    }
+
+    #[test]
+    fn creates_a_new_folder() {
+        let dir = tempdir().expect("temp dir");
+        let path = dir.path().join("notes");
+
+        let info = create_folder_impl(&path).expect("create folder");
+
+        assert!(info.is_dir);
+        assert!(!info.is_file);
+        assert_eq!(info.name, "notes");
+        assert!(path.exists());
+    }
+
+    #[test]
+    fn create_file_rejects_existing_paths() {
+        let dir = tempdir().expect("temp dir");
+        let path = dir.path().join("existing.md");
+        fs::write(&path, "hello").expect("write fixture");
+
+        let error = create_file_impl(&path).expect_err("must reject existing file");
+        assert_eq!(error.code, "already_exists");
     }
 }

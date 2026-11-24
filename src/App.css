@@ -610,6 +610,18 @@ body.is-resizing .sidebar {
   color: var(--danger);
 }
 
+.tree-context-menu button svg {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+
+.tree-context-menu__separator {
+  height: 1px;
+  margin: 5px 6px;
+  background: var(--border);
+}
+
 .tree-rename-label {
   display: grid;
   gap: 6px;

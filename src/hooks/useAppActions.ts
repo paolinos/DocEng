@@ -45,6 +45,8 @@ export interface AppActions {
   removeRoot: (rootId: string) => Promise<void>;
   renamePath: (path: string, newName: string, isFolder: boolean) => Promise<void>;
   trashPath: (path: string, isFolder: boolean) => Promise<void>;
+  createFile: (parentPath: string, name: string) => Promise<void>;
+  createFolder: (parentPath: string, name: string) => Promise<void>;
   openFile: (path: string) => Promise<void>;
   saveFile: () => Promise<void>;
   closeFile: (id?: string) => Promise<void>;
@@ -87,6 +89,15 @@ function createRootId(): string {
   }
 
   return `root-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function isValidFileName(name: string): boolean {
+  return (
+    name.trim().length > 0 &&
+    name !== "." &&
+    name !== ".." &&
+    !/[\\/]/.test(name)
+  );
 }
 
 function createRoot(path: string, type: ProjectRootType): ProjectRoot {
@@ -684,6 +695,39 @@ export function useAppActions(): AppActions {
           useProjectStore.getState().removeRootsUnderPath(path);
           useProjectStore.getState().bumpExplorerRevision();
           push(`Moved "${basename(path)}" to Trash.`, "success");
+        } catch (error) {
+          reportError(error);
+        }
+      },
+
+      createFile: async (parentPath: string, name: string) => {
+        if (!isValidFileName(name)) {
+          push("Enter a valid name without a path separator.", "warning");
+          return;
+        }
+
+        try {
+          const target = await join(parentPath, name);
+          const info = await fileSystem.createFile(target);
+          useProjectStore.getState().bumpExplorerRevision();
+          await actionsOpenFile(info.path);
+          push(`Created file "${info.name}".`, "success");
+        } catch (error) {
+          reportError(error);
+        }
+      },
+
+      createFolder: async (parentPath: string, name: string) => {
+        if (!isValidFileName(name)) {
+          push("Enter a valid name without a path separator.", "warning");
+          return;
+        }
+
+        try {
+          const target = await join(parentPath, name);
+          await fileSystem.createFolder(target);
+          useProjectStore.getState().bumpExplorerRevision();
+          push(`Created folder "${name}".`, "success");
         } catch (error) {
           reportError(error);
         }
