@@ -29,6 +29,7 @@ import {
 } from "../stores/documentStore";
 import { useProjectStore } from "../stores/projectStore";
 import { useSearchStore } from "../stores/searchStore";
+import { useConfirmStore } from "../stores/confirmStore";
 import { useToastStore } from "../stores/toastStore";
 import { useUiStore } from "../stores/uiStore";
 
@@ -233,12 +234,29 @@ export function useAppActions(): AppActions {
       push(errorMessage(error), "error", 7000);
     }
 
-    function confirmDiscard(message: string): boolean {
+    async function confirmDiscard(
+      title: string,
+      message: string,
+    ): Promise<boolean> {
       const dirtyDocuments = selectDirtyDocuments(useDocumentStore.getState());
       const projectDirty = useProjectStore.getState().dirty;
 
       if (dirtyDocuments.length === 0 && !projectDirty) return true;
-      return window.confirm(message);
+
+      const detail =
+        dirtyDocuments.length > 0
+          ? dirtyDocuments.length === 1
+            ? `“${dirtyDocuments[0].name}” has unsaved changes.`
+            : `${dirtyDocuments.length} open files have unsaved changes.`
+          : "The project has unsaved changes.";
+
+      return useConfirmStore.getState().requestConfirm({
+        title,
+        message,
+        detail,
+        confirmLabel: "Yes, discard",
+        cancelLabel: "No",
+      });
     }
 
     async function actionsOpenFile(path: string): Promise<void> {
@@ -456,9 +474,10 @@ export function useAppActions(): AppActions {
 
     async function newProjectAction(): Promise<void> {
       if (
-        !confirmDiscard(
-          "The open files or project have unsaved changes. Discard them and create a new project?",
-        )
+        !(await confirmDiscard(
+          "Create a new project?",
+          "Creating a new project will discard the current workspace and any unsaved changes.",
+        ))
       ) {
         return;
       }
@@ -479,6 +498,15 @@ export function useAppActions(): AppActions {
     }
 
     async function openProjectAction(): Promise<void> {
+      if (
+        !(await confirmDiscard(
+          "Open another project?",
+          "Opening another project will discard the current workspace and any unsaved changes.",
+        ))
+      ) {
+        return;
+      }
+
       try {
         const selected = await openDialog({
           multiple: false,
@@ -487,14 +515,6 @@ export function useAppActions(): AppActions {
         });
 
         if (selected === null) return;
-
-        if (
-          !confirmDiscard(
-            "The open files or project have unsaved changes. Discard them and open another project?",
-          )
-        ) {
-          return;
-        }
 
         // The project file must be readable before its roots are authorized.
         // This grants access to the exact file, not to its whole folder.
@@ -522,6 +542,15 @@ export function useAppActions(): AppActions {
     }
 
     async function openProjectFolderAction(): Promise<void> {
+      if (
+        !(await confirmDiscard(
+          "Open another project?",
+          "Opening another project will discard the current workspace and any unsaved changes.",
+        ))
+      ) {
+        return;
+      }
+
       try {
         const selected = await openDialog({
           directory: true,
@@ -531,14 +560,6 @@ export function useAppActions(): AppActions {
         });
 
         if (selected === null) return;
-
-        if (
-          !confirmDiscard(
-            "The open files or project have unsaved changes. Discard them and open another project?",
-          )
-        ) {
-          return;
-        }
 
         const roots = await authorizeRoots([createRoot(selected, "folder")]);
         const name = basename(roots[0].path) || "Untitled Project";

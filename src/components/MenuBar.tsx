@@ -94,7 +94,7 @@ export function MenuBar({ actions }: MenuBarProps) {
           id: "new-project",
           label: "New Project",
           icon: FilePlus2,
-          shortcut: formatShortcut("N"),
+          shortcut: formatShortcut("N", { shift: true }),
           action: actions.newProject,
         },
         {
@@ -148,7 +148,7 @@ export function MenuBar({ actions }: MenuBarProps) {
           id: "new-file",
           label: "New File",
           icon: FilePlus2,
-          shortcut: formatShortcut("N", { alt: true }),
+          shortcut: `${formatShortcut("N")} / ${formatShortcut("N", { alt: true })}`,
           action: actions.newFile,
         },
         { id: "file-sep-1", type: "separator" },

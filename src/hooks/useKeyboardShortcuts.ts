@@ -27,6 +27,17 @@ export function useKeyboardShortcuts(
         return;
       }
 
+      if (
+        event.altKey &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        event.code === "KeyN"
+      ) {
+        event.preventDefault();
+        actions.newFile();
+        return;
+      }
+
       if (!(event.metaKey || event.ctrlKey)) return;
 
       if (event.key === "Tab") {
@@ -58,10 +69,10 @@ export function useKeyboardShortcuts(
           break;
         case "n":
           event.preventDefault();
-          if (event.altKey) {
-            actions.newFile();
-          } else {
+          if (event.shiftKey) {
             actions.newProject();
+          } else {
+            actions.newFile();
           }
           break;
         case "o":

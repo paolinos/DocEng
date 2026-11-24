@@ -4,6 +4,7 @@ import { Sidebar } from "./components/Sidebar";
 import { ResizeHandle } from "./components/ResizeHandle";
 import { EditorPane } from "./components/EditorPane";
 import { StatusBar } from "./components/StatusBar";
+import { ConfirmModal } from "./components/ConfirmModal";
 import { Toaster } from "./components/Toaster";
 import { useAppActions } from "./hooks/useAppActions";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
@@ -55,6 +56,7 @@ function App() {
 
       <StatusBar />
       <Toaster />
+      <ConfirmModal />
     </div>
   );
 }
