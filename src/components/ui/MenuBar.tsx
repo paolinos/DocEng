@@ -21,18 +21,18 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { formatShortcut } from "../lib/platform";
-import type { AppActions } from "../hooks/useAppActions";
+import { formatShortcut } from "../../lib/platform";
+import type { AppActions } from "../../hooks/useAppActions";
 import {
   selectActiveDocument,
   useDocumentStore,
-} from "../stores/documentStore";
+} from "../../stores/documentStore";
 import {
   selectCanSaveProject,
   useProjectStore,
-} from "../stores/projectStore";
-import { useSearchStore } from "../stores/searchStore";
-import { useUiStore } from "../stores/uiStore";
+} from "../../stores/projectStore";
+import { useSearchStore } from "../../stores/searchStore";
+import { useUiStore } from "../../stores/uiStore";
 
 type MenuId = "project" | "file" | "edit" | "view" | "help";
 type IconComponent = ComponentType<{ size?: number | string; strokeWidth?: number }>;

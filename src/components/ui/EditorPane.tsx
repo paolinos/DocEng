@@ -10,31 +10,33 @@ import {
   Pencil,
   Save,
 } from "lucide-react";
-import type { AppActions } from "../hooks/useAppActions";
-import { C4Preview } from "./C4Preview";
+import type { AppActions } from "../../hooks/useAppActions";
 import { CodeEditor } from "./CodeEditor";
 import type { CodeEditorHandle } from "./CodeEditor";
 import { DocumentTabs } from "./DocumentTabs";
 import { FindBar } from "./FindBar";
-import { ImagePreview } from "./ImagePreview";
-import { MarkdownPreview } from "./MarkdownPreview";
 import { SearchPanel } from "./SearchPanel";
-import { SwaggerPreview } from "./SwaggerPreview";
-import { isApiSpecFile } from "../lib/apiSpec";
-import { formatShortcut } from "../lib/platform";
-import { findMatches, jsOffsetForLineColumn } from "../lib/search";
+import {
+  ApiSpecPreview,
+  C4Preview,
+  ImagePreview,
+  MarkdownPreview,
+} from "../preview";
+import { isApiSpecFile } from "../../lib/apiSpec";
+import { formatShortcut } from "../../lib/platform";
+import { findMatches, jsOffsetForLineColumn } from "../../lib/search";
 import {
   selectActiveDocument,
   useDocumentStore,
-} from "../stores/documentStore";
+} from "../../stores/documentStore";
 import {
   selectHasWorkspace,
   useProjectStore,
-} from "../stores/projectStore";
-import { useSearchStore } from "../stores/searchStore";
-import { useUiStore } from "../stores/uiStore";
-import { isDocumentDirty } from "../types";
-import type { ViewMode } from "../types";
+} from "../../stores/projectStore";
+import { useSearchStore } from "../../stores/searchStore";
+import { useUiStore } from "../../stores/uiStore";
+import { isDocumentDirty } from "../../types";
+import type { ViewMode } from "../../types";
 
 interface EditorPaneProps {
   actions: AppActions;
@@ -307,7 +309,7 @@ export function EditorPane({ actions }: EditorPaneProps) {
                     {doc.kind === "markdown" ? (
                       <MarkdownPreview source={doc.content} />
                     ) : isApiSpec ? (
-                      <SwaggerPreview source={doc.content} name={doc.name} />
+                      <ApiSpecPreview source={doc.content} name={doc.name} />
                     ) : doc.kind === "likec4" ? (
                       <C4Preview
                         key={doc.id}

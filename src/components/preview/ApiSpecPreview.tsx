@@ -4,8 +4,8 @@ import { load } from "js-yaml";
 import asyncApiRendererUrl from "@asyncapi/react-component/browser/index.js?url";
 import "swagger-ui-react/swagger-ui.css";
 import "@asyncapi/react-component/styles/default.css";
-import "../styles/swagger-preview.css";
-import { apiSpecKind } from "../lib/apiSpec";
+import "../../styles/swagger-preview.css";
+import { apiSpecKind } from "../../lib/apiSpec";
 
 type AsyncApiRenderer = React.ComponentType<{ schema: Record<string, unknown> }>;
 
@@ -109,12 +109,12 @@ function AsyncApiPreview({ schema }: { schema: Record<string, unknown> }) {
 
 const SwaggerUI = lazy(() => import("swagger-ui-react"));
 
-interface SwaggerPreviewProps {
+interface ApiSpecPreviewProps {
   source: string;
   name: string;
 }
 
-export function SwaggerPreview({ source, name }: SwaggerPreviewProps) {
+export function ApiSpecPreview({ source, name }: ApiSpecPreviewProps) {
   const kind = apiSpecKind(name, source);
   const parsed = useMemo(() => {
     if (!kind) return { spec: null, error: null };

@@ -1,11 +1,13 @@
 import type { CSSProperties } from "react";
-import { MenuBar } from "./components/MenuBar";
-import { Sidebar } from "./components/Sidebar";
-import { ResizeHandle } from "./components/ResizeHandle";
-import { EditorPane } from "./components/EditorPane";
-import { StatusBar } from "./components/StatusBar";
-import { ConfirmModal } from "./components/ConfirmModal";
-import { Toaster } from "./components/Toaster";
+import {
+  ConfirmModal,
+  EditorPane,
+  MenuBar,
+  ResizeHandle,
+  Sidebar,
+  StatusBar,
+  Toaster,
+} from "./components/ui";
 import { useAppActions } from "./hooks/useAppActions";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useSessionPersistence } from "./hooks/useSessionPersistence";

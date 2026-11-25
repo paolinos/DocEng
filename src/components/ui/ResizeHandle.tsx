@@ -1,11 +1,11 @@
 import { useRef } from "react";
 import type { KeyboardEvent, PointerEvent } from "react";
-import { clamp } from "../lib/utils";
+import { clamp } from "../../lib/utils";
 import {
   SIDEBAR_MAX,
   SIDEBAR_MIN,
   useUiStore,
-} from "../stores/uiStore";
+} from "../../stores/uiStore";
 
 interface ResizeHandleProps {
   width: number;

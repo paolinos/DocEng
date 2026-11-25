@@ -40,10 +40,10 @@ import {
 import { markdown } from "@codemirror/lang-markdown";
 import { yaml } from "@codemirror/lang-yaml";
 import { languages } from "@codemirror/language-data";
-import { docEngHighlightStyle, docEngTheme } from "../lib/editorTheme";
-import type { SearchMatch } from "../lib/search";
-import { basename } from "../lib/utils";
-import type { DocumentKind } from "../types";
+import { docEngHighlightStyle, docEngTheme } from "../../lib/editorTheme";
+import type { SearchMatch } from "../../lib/search";
+import { basename } from "../../lib/utils";
+import type { DocumentKind } from "../../types";
 
 export interface CodeEditorHandle {
   focus: () => void;

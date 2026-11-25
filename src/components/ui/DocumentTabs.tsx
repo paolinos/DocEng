@@ -9,10 +9,10 @@ import {
   Search,
   X,
 } from "lucide-react";
-import type { AppActions } from "../hooks/useAppActions";
-import { useDocumentStore } from "../stores/documentStore";
-import { useSearchStore } from "../stores/searchStore";
-import { isDocumentDirty, type DocumentKind } from "../types";
+import type { AppActions } from "../../hooks/useAppActions";
+import { useDocumentStore } from "../../stores/documentStore";
+import { useSearchStore } from "../../stores/searchStore";
+import { isDocumentDirty, type DocumentKind } from "../../types";
 
 function iconForKind(kind: DocumentKind) {
   switch (kind) {

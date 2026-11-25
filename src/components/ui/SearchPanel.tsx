@@ -6,10 +6,10 @@ import {
   Search,
   X,
 } from "lucide-react";
-import type { AppActions } from "../hooks/useAppActions";
-import { groupSearchHits, projectRelativePath } from "../lib/search";
-import { useProjectStore } from "../stores/projectStore";
-import { useSearchStore } from "../stores/searchStore";
+import type { AppActions } from "../../hooks/useAppActions";
+import { groupSearchHits, projectRelativePath } from "../../lib/search";
+import { useProjectStore } from "../../stores/projectStore";
+import { useSearchStore } from "../../stores/searchStore";
 
 interface SearchPanelProps {
   actions: AppActions;

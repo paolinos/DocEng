@@ -4,7 +4,7 @@ import {
   type C4Diagnostic,
   type C4Model,
   type C4ViewSummary,
-} from "../lib/likec4";
+} from "../../lib/likec4";
 
 const C4DiagramImpl = lazy(() => import("./C4DiagramImpl"));
 

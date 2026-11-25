@@ -27,7 +27,16 @@ DocEng is a project-based desktop text/Markdown editor built with **Tauri 2**, *
 src/
   App.tsx                 App shell
   main.tsx                Entry point
-  components/             UI components (MenuBar, Sidebar, EditorPane, etc.)
+  components/
+    ui/                   App shell / general-purpose UI
+                          (MenuBar, Sidebar, EditorPane, FileTree, etc.)
+                          Re-exported from `components/ui/index.ts`.
+    preview/              Document-type preview components
+                          (MarkdownPreview, C4Preview, ImagePreview,
+                           ApiSpecPreview for OpenAPI/AsyncAPI)
+                          Re-exported from `components/preview/index.ts`.
+    diagram/              Shared diagram rendering primitives
+                          (C4Diagram, C4DiagramImpl, MermaidDiagram)
   hooks/                  Global hooks: useAppActions, useKeyboardShortcuts,
                           useSessionRestore, useSessionPersistence
   lib/                    Frontend helpers and wrappers
@@ -102,7 +111,7 @@ Use `store.getState()` for reads inside actions and the selector hooks for React
 | Format | Detection | Preview component |
 |--------|-----------|-------------------|
 | Markdown | `.md` / `.markdown` extension | `MarkdownPreview` |
-| OpenAPI / AsyncAPI | YAML files containing a top-level `openapi:` or `asyncapi:` key (`src/lib/apiSpec.ts`) | `SwaggerPreview` — uses `swagger-ui-react` for OpenAPI and `@asyncapi/react-component` for AsyncAPI |
+| OpenAPI / AsyncAPI | YAML files containing a top-level `openapi:` or `asyncapi:` key (`src/lib/apiSpec.ts`) | `ApiSpecPreview` — uses `swagger-ui-react` for OpenAPI and `@asyncapi/react-component` for AsyncAPI |
 | LikeC4 / C4 | `.c4` or `.likec4` extension, or `likec4`/`c4` fenced code block in Markdown | `C4Preview` / `C4Diagram` via the `likec4` library; right-click a C4 file to export all views as a single `.drawio` file |
 | Mermaid | `mermaid` fenced code block in Markdown | `MermaidDiagram` |
 
@@ -129,15 +138,6 @@ Use `store.getState()` for reads inside actions and the selector hooks for React
 | `Ctrl/Cmd+1/2/3` | Editor / split / preview view mode |
 
 > The in-app menu bar mirrors these shortcuts via `formatShortcut()` in `src/lib/platform.ts`.
-
-## Recent changes
-
-- `Ctrl/Cmd+N` and `Alt+N` now create a new file instead of a new project.
-- New project moved to `Ctrl/Cmd+Shift+N`.
-- New/open project actions now show a custom discard-changes modal when unsaved files or project changes exist. The modal offers **No** (cancel and save first) and **Yes, discard**.
-- Right-clicking a `.c4` / `.likec4` file in the file tree now offers **Export to Draw.io**, which writes a single `.drawio` file next to the source containing all views.
-- PNG/JPEG export for C4 files was removed; Draw.io is the only supported export format.
-- Added `@likec4/generators` for Draw.io XML generation and an `events` polyfill so `node:events` (used by LikeC4's layout layer) works in the browser bundle.
 
 ## Project file format
 

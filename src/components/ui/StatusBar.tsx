@@ -9,19 +9,19 @@ import {
   Network,
   Pencil,
 } from "lucide-react";
-import { formatBytes } from "../lib/utils";
+import { formatBytes } from "../../lib/utils";
 import {
   selectActiveDocument,
   useDocumentStore,
-} from "../stores/documentStore";
-import { useProjectStore } from "../stores/projectStore";
-import { useUiStore } from "../stores/uiStore";
+} from "../../stores/documentStore";
+import { useProjectStore } from "../../stores/projectStore";
+import { useUiStore } from "../../stores/uiStore";
 import {
   imageMimeForPath,
   isDocumentDirty,
   isEditableKind,
   type DocumentKind,
-} from "../types";
+} from "../../types";
 
 function iconForKind(kind: DocumentKind) {
   switch (kind) {

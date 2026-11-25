@@ -1,4 +1,4 @@
-import { C4Diagram } from "./C4Diagram";
+import { C4Diagram } from "../diagram/C4Diagram";
 
 interface C4PreviewProps {
   source: string;

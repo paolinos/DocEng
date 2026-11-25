@@ -1,5 +1,5 @@
 import { LikeC4ModelProvider, LikeC4View } from "likec4/react";
-import type { C4Model } from "../lib/likec4";
+import type { C4Model } from "../../lib/likec4";
 
 interface C4DiagramImplProps {
   model: C4Model;

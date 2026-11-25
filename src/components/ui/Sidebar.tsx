@@ -5,10 +5,10 @@ import {
   FolderPlus,
   PanelLeftClose,
 } from "lucide-react";
-import type { AppActions } from "../hooks/useAppActions";
+import type { AppActions } from "../../hooks/useAppActions";
 import { FileTree } from "./FileTree";
-import { useProjectStore } from "../stores/projectStore";
-import { useUiStore } from "../stores/uiStore";
+import { useProjectStore } from "../../stores/projectStore";
+import { useUiStore } from "../../stores/uiStore";
 
 interface SidebarProps {
   actions: AppActions;

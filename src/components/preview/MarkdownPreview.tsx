@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { C4Diagram } from "./C4Diagram";
-import { MermaidDiagram } from "./MermaidDiagram";
+import { C4Diagram } from "../diagram/C4Diagram";
+import { MermaidDiagram } from "../diagram/MermaidDiagram";
 
 interface MarkdownPreviewProps {
   source: string;

@@ -14,14 +14,14 @@ import {
   X,
 } from "lucide-react";
 import { dirname } from "@tauri-apps/api/path";
-import type { PathInfo } from "../lib/fs";
-import { errorMessage, fileSystem } from "../lib/fs";
-import { basename } from "../lib/utils";
-import { useDocumentStore, selectActivePath } from "../stores/documentStore";
-import { useProjectStore } from "../stores/projectStore";
-import { useToastStore } from "../stores/toastStore";
-import type { DocumentKind, OpenDocument, ProjectRoot } from "../types";
-import { documentKindForPath, isDocumentDirty } from "../types";
+import type { PathInfo } from "../../lib/fs";
+import { errorMessage, fileSystem } from "../../lib/fs";
+import { basename } from "../../lib/utils";
+import { useDocumentStore, selectActivePath } from "../../stores/documentStore";
+import { useProjectStore } from "../../stores/projectStore";
+import { useToastStore } from "../../stores/toastStore";
+import type { DocumentKind, OpenDocument, ProjectRoot } from "../../types";
+import { documentKindForPath, isDocumentDirty } from "../../types";
 
 function iconForKind(kind: DocumentKind) {
   switch (kind) {

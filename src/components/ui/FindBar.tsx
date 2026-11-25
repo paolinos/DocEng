@@ -7,7 +7,7 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { useSearchStore } from "../stores/searchStore";
+import { useSearchStore } from "../../stores/searchStore";
 
 interface FindBarProps {
   matchCount: number;

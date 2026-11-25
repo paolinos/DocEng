@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { loadMermaid } from "../lib/mermaid";
+import { loadMermaid } from "../../lib/mermaid";
 
 interface MermaidDiagramProps {
   source: string;

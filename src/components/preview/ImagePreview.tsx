@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ImageOff, Maximize, ZoomIn, ZoomOut } from "lucide-react";
-import { formatBytes } from "../lib/utils";
-import type { OpenDocument } from "../types";
+import { formatBytes } from "../../lib/utils";
+import type { OpenDocument } from "../../types";
 
 type Zoom = "fit" | number;
 

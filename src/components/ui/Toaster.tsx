@@ -5,8 +5,8 @@ import {
   X,
   XCircle,
 } from "lucide-react";
-import { useToastStore } from "../stores/toastStore";
-import type { ToastKind } from "../stores/toastStore";
+import { useToastStore } from "../../stores/toastStore";
+import type { ToastKind } from "../../stores/toastStore";
 
 const ICONS = {
   info: Info,

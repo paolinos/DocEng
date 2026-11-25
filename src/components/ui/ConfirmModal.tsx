@@ -1,4 +1,4 @@
-import { useConfirmStore } from "../stores/confirmStore";
+import { useConfirmStore } from "../../stores/confirmStore";
 
 export function ConfirmModal() {
   const {
