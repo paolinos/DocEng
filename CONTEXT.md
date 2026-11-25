@@ -103,7 +103,7 @@ Use `store.getState()` for reads inside actions and the selector hooks for React
 |--------|-----------|-------------------|
 | Markdown | `.md` / `.markdown` extension | `MarkdownPreview` |
 | OpenAPI / AsyncAPI | YAML files containing a top-level `openapi:` or `asyncapi:` key (`src/lib/apiSpec.ts`) | `SwaggerPreview` — uses `swagger-ui-react` for OpenAPI and `@asyncapi/react-component` for AsyncAPI |
-| LikeC4 / C4 | `.c4` or `.likec4` extension, or `likec4`/`c4` fenced code block in Markdown | `C4Preview` / `C4Diagram` via the `likec4` library |
+| LikeC4 / C4 | `.c4` or `.likec4` extension, or `likec4`/`c4` fenced code block in Markdown | `C4Preview` / `C4Diagram` via the `likec4` library; right-click a C4 file to export all views as a single `.drawio` file |
 | Mermaid | `mermaid` fenced code block in Markdown | `MermaidDiagram` |
 
 ## Search
@@ -135,6 +135,9 @@ Use `store.getState()` for reads inside actions and the selector hooks for React
 - `Ctrl/Cmd+N` and `Alt+N` now create a new file instead of a new project.
 - New project moved to `Ctrl/Cmd+Shift+N`.
 - New/open project actions now show a custom discard-changes modal when unsaved files or project changes exist. The modal offers **No** (cancel and save first) and **Yes, discard**.
+- Right-clicking a `.c4` / `.likec4` file in the file tree now offers **Export to Draw.io**, which writes a single `.drawio` file next to the source containing all views.
+- PNG/JPEG export for C4 files was removed; Draw.io is the only supported export format.
+- Added `@likec4/generators` for Draw.io XML generation and an `events` polyfill so `node:events` (used by LikeC4's layout layer) works in the browser bundle.
 
 ## Project file format
 
@@ -181,3 +184,4 @@ make test
 - When adding a new keyboard shortcut, update both `useKeyboardShortcuts.ts` and the menu bar label in `MenuBar.tsx` so they stay in sync.
 - Session persistence is automatic; be careful about serializable state and avoid storing large transient data in stores.
 - `npm test` currently has a pre-existing `ts-jest` resolution issue in this environment; rely on `npm run typecheck` and `cargo test` for verification.
+- LikeC4's layout layer imports `node:events`. The Vite build aliases `node:events` to the `events` package so it works in the browser. Do not remove `events` from dependencies or the alias in `vite.config.ts` without checking that the production build still runs.
