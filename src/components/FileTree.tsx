@@ -67,6 +67,7 @@ interface FileTreeProps {
   onTrashPath: (path: string, isFolder: boolean) => Promise<void>;
   onCreateFile: (parentPath: string, name: string) => Promise<void>;
   onCreateFolder: (parentPath: string, name: string) => Promise<void>;
+  onExportC4: (path: string) => Promise<void>;
 }
 
 interface RemoveConfirmation {
@@ -267,6 +268,7 @@ export function FileTree({
   onTrashPath,
   onCreateFile,
   onCreateFolder,
+  onExportC4,
 }: FileTreeProps) {
   const revision = useProjectStore((state) => state.explorerRevision);
   const [confirmation, setConfirmation] = useState<RemoveConfirmation | null>(null);
@@ -440,6 +442,22 @@ export function FileTree({
             >
               Move to Trash…
             </button>
+            {!menu.entry.isDir && documentKindForPath(menu.entry.path) === "likec4" ? (
+              <>
+                <div className="tree-context-menu__separator" role="separator" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenu(null);
+                    void onExportC4(menu.entry.path);
+                  }}
+                >
+                  <Network size={14} />
+                  Export to Draw.io
+                </button>
+              </>
+            ) : null}
             {menu.root ? (
               <>
                 <div className="tree-context-menu__separator" role="separator" />

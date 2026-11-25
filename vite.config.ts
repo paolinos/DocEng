@@ -7,7 +7,15 @@ const host = process.env.TAURI_DEV_HOST;
 // https://vite.dev/config/
 export default defineConfig(() => ({
   plugins: [react()],
-  resolve: { dedupe: ["react", "react-dom", "@likec4/core"] },
+  resolve: {
+    dedupe: ["react", "react-dom", "@likec4/core"],
+    alias: {
+      // graphology (used by @likec4/layouts) imports node:events;
+      // provide a browser-compatible EventEmitter so classes that extend
+      // EventEmitter do not fail at runtime with "superclass is not a constructor".
+      "node:events": "events",
+    },
+  },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { EditorView } from "@codemirror/view";
-import { join } from "@tauri-apps/api/path";
+import { dirname, join } from "@tauri-apps/api/path";
 import {
   open as openDialog,
   save as saveDialog,
@@ -47,6 +47,7 @@ export interface AppActions {
   trashPath: (path: string, isFolder: boolean) => Promise<void>;
   createFile: (parentPath: string, name: string) => Promise<void>;
   createFolder: (parentPath: string, name: string) => Promise<void>;
+  exportC4File: (path: string) => Promise<void>;
   openFile: (path: string) => Promise<void>;
   saveFile: () => Promise<void>;
   closeFile: (id?: string) => Promise<void>;
@@ -728,6 +729,51 @@ export function useAppActions(): AppActions {
           await fileSystem.createFolder(target);
           useProjectStore.getState().bumpExplorerRevision();
           push(`Created folder "${name}".`, "success");
+        } catch (error) {
+          reportError(error);
+        }
+      },
+
+      exportC4File: async (path: string) => {
+        const exportingToastId = push(
+          `Exporting "${basename(path)}" as Draw.io…`,
+          "info",
+        );
+
+        try {
+          const file = await fileSystem.readTextFile(path);
+          const { parseC4Source } = await import("../lib/likec4");
+          const parsed = await parseC4Source(file.content);
+
+          if (!parsed.ok) {
+            push(
+              `Could not parse "${basename(path)}": ${parsed.error}`,
+              "error",
+              7000,
+            );
+            return;
+          }
+
+          if (parsed.views.length === 0) {
+            push(`"${basename(path)}" does not declare any views.`, "warning");
+            return;
+          }
+
+          const dir = await dirname(path);
+          const base = basename(path).replace(/\.[^.]+$/, "");
+
+          const { generateDrawioMulti } = await import("@likec4/generators");
+          const viewModels = Array.from(parsed.model.views());
+          const xml = generateDrawioMulti(viewModels);
+          const target = await join(dir, `${base}.drawio`);
+          const auth = await fileSystem.authorizeNewFile(target);
+          const result = await fileSystem.writeTextFile(auth.path, xml, null);
+          useProjectStore.getState().bumpExplorerRevision();
+          useToastStore.getState().dismiss(exportingToastId);
+          push(
+            `Exported ${viewModels.length} view${viewModels.length === 1 ? "" : "s"} to "${basename(result.path)}".`,
+            "success",
+          );
         } catch (error) {
           reportError(error);
         }

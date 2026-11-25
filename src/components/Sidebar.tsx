@@ -70,6 +70,7 @@ export function Sidebar({ actions }: SidebarProps) {
               onTrashPath={actions.trashPath}
               onCreateFile={actions.createFile}
               onCreateFolder={actions.createFolder}
+              onExportC4={actions.exportC4File}
             />
           </div>
         ) : (
